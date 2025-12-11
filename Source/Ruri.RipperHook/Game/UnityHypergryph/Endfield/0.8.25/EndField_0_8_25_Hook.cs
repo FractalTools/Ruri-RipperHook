@@ -1,6 +1,4 @@
-﻿using AssetRipper.Assets;
-using AssetRipper.IO.Endian;
-using AssetRipper.Primitives;
+﻿using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.EndFieldCommon;
@@ -76,7 +74,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
     protected override void InitAttributeHook()
     {
         additionalNamespaces.Add(typeof(EndFieldCommon_Hook).Namespace);
-        AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = CustomBlockCompression; });
+        AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = Ruri.RipperHook.EndField_0_5.EndField_0_5_Hook.CustomBlockCompression; });
 
         base.InitAttributeHook(); // 处理常规 Attribute
 

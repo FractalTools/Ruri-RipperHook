@@ -1,7 +1,6 @@
 ﻿using Ruri.RipperHook.EndFieldCommon;
 using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
-using Ruri.RipperHook.HookUtils.PlatformGameStructureHook_CollectAssetBundles;
 
 namespace Ruri.RipperHook.EndField_0_5;
 
