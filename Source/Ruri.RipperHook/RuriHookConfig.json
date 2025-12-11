@@ -5,6 +5,7 @@
     "AR_SkipProcessingAnimation",
     "AR_AssetMapCreator",
     "AR_ShaderDecompiler",
+    "AR_SkipStreamingAssets",
     "EndField_0_8_25"
   ],
   "AvailableOptionsReference": [
