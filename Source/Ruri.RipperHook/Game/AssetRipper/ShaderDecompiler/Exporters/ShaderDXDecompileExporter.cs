@@ -55,18 +55,9 @@ public sealed class ShaderDXDecompileExporter : ShaderExporterBase
 
         // USCSandbox.Processor.ShaderProcessor is internal, use Reflection
         var uscsAssembly = typeof(USCSandbox.GPUPlatform).Assembly;
-        var shaderProcessorType = uscsAssembly.GetType("USCSandbox.Processor.ShaderProcessor");
-        if (shaderProcessorType == null)
-            throw new Exception("Could not find USCSandbox.Processor.ShaderProcessor via reflection.");
+        var shaderProcessor = new USCSandbox.Processor.ShaderProcessor(shaderData, asset.Collection.Version, USCSandbox.GPUPlatform.d3d11);
 
-        var ctor = shaderProcessorType.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(AssetTypeValueField), typeof(UnityVersion), typeof(USCSandbox.GPUPlatform) }, null);
-        if (ctor == null)
-            ctor = shaderProcessorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance).First(); // Fallback
-
-        var shaderProcessor = ctor.Invoke(new object[] { shaderData, asset.Collection.Version, USCSandbox.GPUPlatform.d3d11 });
-
-        var processMethod = shaderProcessorType.GetMethod("Process", BindingFlags.Public | BindingFlags.Instance);
-        string shaderText = (string)processMethod.Invoke(shaderProcessor, null);
+        string shaderText = shaderProcessor.Process();
 
         // For testing, you might want to write the shaderText to the file
         using (StreamWriter writer = new StreamWriter(fileStream))
