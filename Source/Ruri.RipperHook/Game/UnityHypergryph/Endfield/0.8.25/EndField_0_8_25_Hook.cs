@@ -16,7 +16,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
     protected static LZ4_EndField_0_5 customLZ4;
 
     // 需要 Hook 的类列表
-    private static readonly List<ClassIDType> ClassesToHook = new()
+    private static readonly List<ClassIDType> ClassesHook = new()
     {
         ClassIDType.AnimationClip,
         ClassIDType.Animator,
@@ -82,6 +82,6 @@ public partial class EndField_0_8_25_Hook : RipperHook
 
         // 注册通用 Class Hook
         // 参数: ID列表, 原始Unity版本, 目标Unity版本, Ruri生成库的命名空间
-        HookClasses(ClassesToHook, ClassHookVersion, EndFieldClassVersion, "Ruri.SourceGenerated");
+        HookClasses(ClassesHook, ClassHookVersion, EndFieldClassVersion, "Ruri.SourceGenerated");
     }
 }
