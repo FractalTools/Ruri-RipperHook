@@ -1,4 +1,6 @@
-﻿using AssetRipper.GUI.Web;
+﻿using AssetRipper.Export.UnityProjects;
+using AssetRipper.IO.Files;
+using AssetRipper.Processing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -6,15 +8,18 @@ namespace Ruri.RipperHook.AR_AssetMapCreator;
 
 public partial class AR_AssetMapCreator_Hook
 {
-    [RetargetMethod(typeof(GameFileLoader), nameof(GameFileLoader.ExportUnityProject), isReturn: false)]
-    public static void ExportUnityProject(string path)
+    // 修改 Hook 目标为 ExportHandler.Export，此时目录已被 GameFileLoader 清理重建
+    // 使用实例方法以匹配目标方法的参数数量 (隐式 this + 3 参数)
+    [RetargetMethod(typeof(ExportHandler), nameof(ExportHandler.Export), isReturn: false)]
+    public void Export(GameData gameData, string rootPath, FileSystem fileSystem)
     {
-        var outputPath = path + $"RuriInfo"; // 放里面会被后处理清空 时机问题
+        // 直接使用 rootPath (导出目录)，并在其下创建 RuriInfo 子文件夹
+        var outputPath = Path.Combine(rootPath, "RuriInfo");
         if (!Directory.Exists(outputPath))
         {
             Directory.CreateDirectory(outputPath);
         }
-        // 修改文件扩展名为 .json 更直观
+
         ExportDictionaryToFile(assetClassIDLookup, Path.Combine(outputPath, "AssetClassIDLookup.json"));
         ExportDictionaryToFile(assetDependenciesLookup, Path.Combine(outputPath, "AssetDependenciesLookup.json"));
         ExportDictionaryToFile(assetListLookup, Path.Combine(outputPath, "AssetListLookup.json"));
@@ -25,10 +30,8 @@ public partial class AR_AssetMapCreator_Hook
         var settings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
-            // 使用 StringEnumConverter 使枚举以字符串形式导出
             Converters = new List<JsonConverter> { new StringEnumConverter() }
         };
-        // 序列化整个字典为 JSON 字符串
         string json = JsonConvert.SerializeObject(dictionary, settings);
         File.WriteAllText(filePath, json);
     }
