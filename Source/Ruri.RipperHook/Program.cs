@@ -1,9 +1,7 @@
 ﻿using AssetRipper.GUI.Web;
-using AssetRipper.SourceGenerated.Classes.ClassID_130;
 using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_25;
 using Ruri.SourceGenerated.Subclasses.AclClip;
-using System.Reflection;
 
 namespace Ruri.RipperHook;
 
@@ -29,7 +27,6 @@ internal static class Program
         RuriRuntimeHook.Init(GameHookType.AR_AssetMapCreator);
         RuriRuntimeHook.Init(GameHookType.AR_ShaderDecompiler);
         //RuriRuntimeHook.Init(GameHookType.StarRail_3_2);
-        //RuriRuntimeHook.Init(GameHookType.ZenlessZoneZero_1_0);
         RuriRuntimeHook.Init(GameHookType.EndField_0_8_25);
         //RuriRuntimeHook.Init(GameHookType.GirlsFrontline2_1_0);
         //RuriRuntimeHook.Init(GameHookType.AzurPromilia_0_1_1_3); 
