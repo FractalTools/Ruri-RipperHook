@@ -70,7 +70,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
     protected EndField_0_8_25_Hook()
     {
         customLZ4 = new LZ4_EndField_0_5();
-        RuriRuntimeHook.commonDecryptor = new FairGuardDecryptor_EndField_0_5();
+        RuriRuntimeHook.CurrentDecryptor = new FairGuardDecryptor_EndField_0_5();
     }
 
     protected override void InitAttributeHook()

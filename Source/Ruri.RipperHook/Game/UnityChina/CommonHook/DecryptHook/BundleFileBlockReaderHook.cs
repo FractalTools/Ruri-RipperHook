@@ -25,7 +25,7 @@ public partial class UnityChinaCommon_Hook
                 Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
                 
                 if ((block.Flags & (StorageBlockFlags)0x100) != 0)
-                    RuriRuntimeHook.unityChinaDecryptor.DecryptBlock(compressedBytes, (int)compressedSize, m_cachedBlockIndex);
+                    RuriRuntimeHook.CurrentDecryptor.DecryptBlock(compressedBytes, (int)compressedSize, m_cachedBlockIndex);
                 
                 var bytesWritten = LZ4Codec.Decode(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)

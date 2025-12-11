@@ -42,7 +42,7 @@ public static class MihoyoCommon
                 Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
 
                 if (isMr0kGroup && Mr0kDecryptor.IsMr0k(compressedBytes))
-                    compressedBytes = RuriRuntimeHook.commonDecryptor.Decrypt(compressedBytes);
+                    compressedBytes = RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes);
 
                 int bytesWritten = isLz4Group ? LZ4Codec.Decode(compressedBytes, uncompressedBytes) : OodleHelper.Decompress(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)

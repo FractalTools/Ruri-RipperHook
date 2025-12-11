@@ -13,10 +13,10 @@ public static class RuriRuntimeHook
     public static Dictionary<GameHookType, RipperHook> currentGameHook = new();
     public static string gameName;
     public static string gameVer;
-    
-    // 原因如上 禁止在任何Hook类中添加成员字段所以只能写全局
-    public static CommonDecryptor commonDecryptor;
-    public static UnityChinaDecryptor unityChinaDecryptor;
+
+    // [Refactor] 统一使用 CommonDecryptor，具体实现由各游戏Hook初始化时赋值
+    // 支持无参解密和带BlockIndex的解密
+    public static CommonDecryptor CurrentDecryptor { get; set; } = new CommonDecryptor();
 
     public static void Init(GameHookType gameName)
     {
@@ -46,6 +46,9 @@ public static class RuriRuntimeHook
         }
 
         var type = Type.GetType("Ruri.RipperHook." + name + "." + name + "_Hook");
+        if (type == null)
+            throw new InvalidOperationException($"Could not find Hook class for {name}");
+
         currentGameHook[hookName] = (RipperHook)Activator.CreateInstance(type, true);
     }
 }

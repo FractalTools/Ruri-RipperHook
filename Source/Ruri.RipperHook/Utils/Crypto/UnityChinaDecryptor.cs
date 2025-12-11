@@ -5,7 +5,7 @@ using AssetRipper.IO.Endian;
 
 namespace Ruri.RipperHook.Crypto;
 
-public class UnityChinaDecryptor
+public record UnityChinaDecryptor : CommonDecryptor
 {
     private const string Signature = "#$unity3dchina!@";
 
@@ -68,13 +68,21 @@ public class UnityChinaDecryptor
         return true;
     }
 
-    public void DecryptBlock(Span<byte> bytes, int size, int index)
+    // [Refactor] 适配 CommonDecryptor 接口
+    public override void DecryptBlock(Span<byte> bytes, int size, int index)
     {
         var offset = 0;
         while (offset < size)
         {
-            offset += Decrypt(bytes.Slice(offset), index++, size - offset);
+            offset += DecryptInternal(bytes.Slice(offset), index++, size - offset);
         }
+    }
+
+    // [Refactor] 适配 CommonDecryptor 接口
+    public override Span<byte> Decrypt(Span<byte> dataSpan, int index)
+    {
+        DecryptBlock(dataSpan, dataSpan.Length, index);
+        return dataSpan;
     }
 
     private void DecryptKey(byte[] key, byte[] data)
@@ -97,7 +105,7 @@ public class UnityChinaDecryptor
         return b;
     }
 
-    private int Decrypt(Span<byte> bytes, int index, int remaining)
+    private int DecryptInternal(Span<byte> bytes, int index, int remaining)
     {
         var offset = 0;
 
