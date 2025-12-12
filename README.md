@@ -1,6 +1,6 @@
 ## Feature
 - AssemblyDumper support
-- Free Shader Decompile
+- Free Shader Decompile (DX11)
 
 ## Special Thanks to:
 - **ds5678**: Original author.
