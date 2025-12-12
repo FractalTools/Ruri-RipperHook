@@ -68,7 +68,7 @@ public partial class EndField_0_8_25_Hook
             reader.ReadBytes(8);
         }
 
-        Logger.Info($"[EndField] Header Decrypted: Flags={_this.Flags}, Size={_this.Size}, CompressedMeta={_this.CompressedBlocksInfoSize}, EncFlags={encFlags}");
+        //Logger.Info($"[EndField] Header Decrypted: Flags={_this.Flags}, Size={_this.Size}, CompressedMeta={_this.CompressedBlocksInfoSize}, EncFlags={encFlags}");
 
         reader.EndianType = originalEndian;
     }

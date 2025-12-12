@@ -64,7 +64,7 @@ public partial class EndField_0_8_25_Hook
             var directoryInfo = ReadObfuscatedDirectoryInfo(reader);
             _this.DirectoryInfo = directoryInfo;
 
-            Logger.Info($"[EndField] Metadata Parsed: {blocksInfo.StorageBlocks.Length} blocks, {directoryInfo.Nodes.Length} nodes.");
+            //Logger.Info($"[EndField] Metadata Parsed: {blocksInfo.StorageBlocks.Length} blocks, {directoryInfo.Nodes.Length} nodes.");
         }
 
         // Critical Fix: Align stream if BlockInfoNeedPaddingAtStart is set (0x200)
