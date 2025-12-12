@@ -29,7 +29,7 @@ public partial class EndField_0_8_25_Hook
             if (firstBundleSize > 0 && firstBundleSize < fileData.Length)
             {
                 isVFSContainer = true;
-                Logger.Info($"[EndField] Detected VFS Container: {Path.GetFileName(path)}");
+                //Logger.Info($"[EndField] Detected VFS Container: {Path.GetFileName(path)}");
             }
 
             if (isVFSContainer)
