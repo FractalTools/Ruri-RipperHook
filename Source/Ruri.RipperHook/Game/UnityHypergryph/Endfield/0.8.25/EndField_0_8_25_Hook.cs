@@ -8,7 +8,7 @@ namespace Ruri.RipperHook.EndField_0_8_25;
 
 public partial class EndField_0_8_25_Hook : RipperHook
 {
-    public static UnityVersion EndFieldClassVersion = UnityVersion.Parse("2021.3.825x5" + (int)CustomEngineType.EndField);
+    public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.825x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f5";
 
     protected static LZ4_EndField_0_5 customLZ4;
