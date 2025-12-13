@@ -8,7 +8,7 @@ namespace Ruri.RipperHook.EndField_0_8_25;
 public partial class EndField_0_8_25_Hook
 {
     [RetargetMethod(typeof(Mesh_2020_1_0_a19))]
-    public void CompressedMesh_ReadRelease(ref EndianSpanReader reader)
+    public void Mesh_ReadRelease(ref EndianSpanReader reader)
     {
         var _this = (object)this as Mesh_2020_1_0_a19;
         var type = typeof(Mesh_2020_1_0_a19);
