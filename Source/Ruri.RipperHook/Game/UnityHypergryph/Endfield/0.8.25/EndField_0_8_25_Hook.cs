@@ -35,7 +35,8 @@ public partial class EndField_0_8_25_Hook : RipperHook
         ClassIDType.Light,
         ClassIDType.LineRenderer,
         ClassIDType.Material,
-        ClassIDType.Mesh,
+        // 需要自定义加载
+        // ClassIDType.Mesh,
         ClassIDType.MeshCollider,
         ClassIDType.MeshRenderer,
         ClassIDType.NavMeshProjectSettings,
