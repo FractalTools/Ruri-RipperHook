@@ -48,13 +48,42 @@ public class RetargetMethodAttribute : Attribute
     /// </summary>
     public static string GetSourceTypeFullName(ClassIDType classIdType, UnityVersion version)
     {
-        string factoryTypeName = $"AssetRipper.SourceGenerated.Classes.ClassID_{(int)classIdType}.{classIdType}";
+        int id = (int)classIdType;
+        string enumName = classIdType.ToString();
+        // 基础命名空间，例如: AssetRipper.SourceGenerated.Classes.ClassID_238
+        string baseNamespace = $"AssetRipper.SourceGenerated.Classes.ClassID_{id}";
+
         Assembly asm = typeof(ClassIDType).Assembly;
-        Type factoryType = asm.GetType(factoryTypeName)
-            ?? throw new InvalidOperationException($"找不到工厂类型: {factoryTypeName} in {asm.GetName().Name}");
+
+        // 1. 尝试标准命名 (例如: ClassID_20.Camera)
+        string factoryTypeName = $"{baseNamespace}.{enumName}";
+        Type? factoryType = asm.GetType(factoryTypeName);
+
+        // 2. 特殊情况修正 (例如: NavMeshData_238 -> NavMeshData)
+        // 如果找不到类型，且枚举名字是以 "_ID" 结尾的，说明是 AssetRipper 为了防冲突加的后缀，尝试去掉后缀查找。
+        if (factoryType == null)
+        {
+            string suffix = $"_{id}";
+            // 检查枚举名是否以 "_ID" 结尾 (例如 "NavMeshData_238" 结尾是 "_238")
+            if (enumName.EndsWith(suffix))
+            {
+                // 移除后缀
+                string cleanName = enumName.Substring(0, enumName.Length - suffix.Length);
+                string cleanTypeName = $"{baseNamespace}.{cleanName}";
+                factoryType = asm.GetType(cleanTypeName);
+
+                // 可选：调试日志
+                // if (factoryType != null) Console.WriteLine($"[RipperHook] Fixed ClassID name: {enumName} -> {cleanName}");
+            }
+        }
+
+        if (factoryType == null)
+            throw new InvalidOperationException($"找不到工厂类型: {factoryTypeName} (已尝试清理后缀 _{id}) in {asm.GetName().Name}");
+
         var mi = factoryType.GetMethod("Create", new[] { typeof(AssetInfo), typeof(UnityVersion) });
         if (mi == null)
-            throw new InvalidOperationException($"在 {factoryTypeName} 中找不到 Create(AssetInfo,UnityVersion)");
+            throw new InvalidOperationException($"在 {factoryType.FullName} 中找不到 Create(AssetInfo,UnityVersion)");
+
         object instance = mi.Invoke(null, new object[] { null, version });
         return instance.GetType().FullName;
     }

@@ -118,15 +118,9 @@ public abstract class RipperHook
             }
         }
     }
-
     /// <summary>
     /// 通用 Class Hook 注册方法
     /// </summary>
-    /// <param name="classIds">需要 Hook 的 ClassID 列表</param>
-    /// <param name="sourceUnityVersion">原始 Unity 版本（用于定位 AssetRipper 原始类）</param>
-    /// <param name="targetVersion">自定义引擎的目标版本（用于创建 Ruri 生成的类）</param>
-    /// <param name="generatedAssemblyNamespace">Ruri.SourceGenerated 的命名空间前缀</param>
-    /// <param name="customCallbacks">可选：自定义回调字典 (ClassID -> Callback)。Callback 替代默认的 Copy 逻辑。</param>
     protected void HookClasses(
         IEnumerable<ClassIDType> classIds,
         string sourceUnityVersion,
@@ -158,8 +152,7 @@ public abstract class RipperHook
             try
             {
                 // 1. 查找原始 AssetRipper 类
-                // GetSourceTypeFullName 返回的是全名（不带程序集），所以直接 Type.GetType 找不到
-                // 必须在 AssetRipper.SourceGenerated 程序集中查找
+                // (RetargetMethodAttribute.GetSourceTypeFullName 里面已经包含了你之前修复的去后缀逻辑)
                 string sourceTypeName = RetargetMethodAttribute.GetSourceTypeFullName(classId, unityVersion);
                 Type? sourceType = assetRipperGeneratedAsm.GetType(sourceTypeName);
 
@@ -170,9 +163,27 @@ public abstract class RipperHook
                 }
 
                 // 2. 查找 Ruri 生成的类
-                // 命名规则: Ruri.SourceGenerated.Classes.ClassID_{int}.{EnumName}
-                string ruriTypeName = $"{generatedAssemblyNamespace}.Classes.ClassID_{(int)classId}.{classId}";
+                // [修复点开始] 增加后缀处理逻辑
+                int id = (int)classId;
+                string enumName = classId.ToString();
+                string ruriBaseNamespace = $"{generatedAssemblyNamespace}.Classes.ClassID_{id}";
+
+                // 优先尝试标准名称
+                string ruriTypeName = $"{ruriBaseNamespace}.{enumName}";
                 Type? ruriType = ruriAssembly?.GetType(ruriTypeName);
+
+                // 如果找不到，尝试去除后缀 (例如 NavMeshData_238 -> NavMeshData)
+                if (ruriType == null)
+                {
+                    string suffix = $"_{id}";
+                    if (enumName.EndsWith(suffix))
+                    {
+                        string cleanName = enumName.Substring(0, enumName.Length - suffix.Length);
+                        string cleanTypeName = $"{ruriBaseNamespace}.{cleanName}";
+                        ruriType = ruriAssembly?.GetType(cleanTypeName);
+                    }
+                }
+                // [修复点结束]
 
                 // 获取 Create 方法
                 MethodInfo? createMethod = null;
@@ -191,6 +202,9 @@ public abstract class RipperHook
                 // 如果没有 Create 方法也没有回调，说明这个类在 Ruri 中没生成，也没自定义逻辑，无法 Hook
                 if (createMethod == null && callback == null)
                 {
+                    // 这里原本是直接 continue，导致你看不到报错。
+                    // 调试时可以取消下面这行的注释来确认是不是找不到 Ruri 类
+                    // Console.WriteLine($"[RipperHook] Debug: Skipped {classId} because Ruri type or Create method not found.");
                     continue;
                 }
 

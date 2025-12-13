@@ -39,6 +39,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
         // ClassIDType.Mesh,
         ClassIDType.MeshCollider,
         ClassIDType.MeshRenderer,
+        ClassIDType.NavMeshData_238,
         ClassIDType.NavMeshProjectSettings,
         ClassIDType.ParticleSystem,
         ClassIDType.ParticleSystemRenderer,
