@@ -2,6 +2,7 @@
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
+using K4os.Compression.LZ4;
 using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.EndFieldCommon;
 
@@ -19,25 +20,40 @@ public partial class EndField_0_5_Hook
 
             case CompressionType.Lz4:
             case CompressionType.Lz4HC:
+                {
+                    uint uncompressedSize = block.UncompressedSize;
+                    byte[] uncompressedBytes = new byte[uncompressedSize];
+                    Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
+                    int bytesWritten = LZ4Codec.Decode(compressedBytes, uncompressedBytes);
+                    if (bytesWritten != uncompressedSize)
+                    {
+                        ARIntelnalReflection.ThrowIncorrectNumberBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType, (long)uncompressedSize, (long)bytesWritten });
+                    }
+                    new MemoryStream(uncompressedBytes).CopyTo(m_cachedBlockStream);
+                }
+                break;
+
             case (CompressionType)CustomCompressionType.Lz4Inv:
-                uint uncompressedSize = block.UncompressedSize;
-                byte[] uncompressedBytes = new byte[uncompressedSize];
-                var compressedSize = block.CompressedSize;
-                Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
-
-                if (m_cachedBlockIndex == 0 && compressedBytes[..32].Count((byte)0xA6) > 5)
-                    compressedBytes = fairGuardDecryptor.Decrypt(compressedBytes);
-
-                var bytesWritten = LZ4Inv_EndField_0_5.Instance.Decompress(compressedBytes, uncompressedBytes);
-                if (bytesWritten < 0)
                 {
-                    ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });
+                    uint uncompressedSize = block.UncompressedSize;
+                    byte[] uncompressedBytes = new byte[uncompressedSize];
+                    var compressedSize = block.CompressedSize;
+                    Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
+
+                    if (m_cachedBlockIndex == 0 && compressedBytes[..32].Count((byte)0xA6) > 5)
+                        compressedBytes = fairGuardDecryptor.Decrypt(compressedBytes);
+
+                    var bytesWritten = LZ4Inv_EndField_0_5.Instance.Decompress(compressedBytes, uncompressedBytes);
+                    if (bytesWritten < 0)
+                    {
+                        ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });
+                    }
+                    else if (bytesWritten != uncompressedSize)
+                    {
+                        ARIntelnalReflection.ThrowIncorrectNumberBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType, (long)uncompressedSize, (long)bytesWritten });
+                    }
+                    new MemoryStream(uncompressedBytes).CopyTo(m_cachedBlockStream);
                 }
-                else if (bytesWritten != uncompressedSize)
-                {
-                    ARIntelnalReflection.ThrowIncorrectNumberBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType, (long)uncompressedSize, (long)bytesWritten });
-                }
-                new MemoryStream(uncompressedBytes).CopyTo(m_cachedBlockStream);
                 break;
 
             case CompressionType.Lzham:
