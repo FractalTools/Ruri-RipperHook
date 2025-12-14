@@ -20,6 +20,7 @@
 - 需要优化Block格式的AB包解析(WMW/VFS/BLK等) 内存拆分读取容易过于碎片化导致内存无法分配 (临时方案是先dump到磁盘再读取)
 - 更小的AssemblyDumper生成 目前有太多代码实际上不需要生成 最小能优化到1mb以下的dll 只需要里面的定义和Read就够了
 - AssemblyDumper生成工作流简化
+- 如果不同游戏版本依赖同样的加密 新版本应该直接依赖旧版本 任何相同的代码都不应该出现2次
 
 ## Special Thanks to:
 - **ds5678**: Original author.
