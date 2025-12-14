@@ -58,8 +58,6 @@ public partial class EndField_0_5_Hook
                     }
                     else
                     {
-                        // 如果连第一个都无法解析，可能不是 Bundle 文件，尝试作为单个文件处理(兜底)
-                        Logger.Warning($"[EndField] Could not detect valid bundle header at start of {path}. Trying fallback.");
                         fileStack.AddRange(GameBundleHook.LoadFilesAndDependencies(
                             fileData,
                             MultiFileStream.GetFilePath(path),

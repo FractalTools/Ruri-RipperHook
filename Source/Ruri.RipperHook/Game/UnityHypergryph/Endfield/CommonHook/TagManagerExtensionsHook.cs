@@ -3,7 +3,7 @@ using AssetRipper.SourceGenerated.Extensions;
 
 namespace Ruri.RipperHook.EndField_0_8_25;
 
-public partial class EndField_0_8_25_Hook : RipperHook
+public partial class EndFieldCommon_Hook : RipperHook
 {
     [RetargetMethod(typeof(TagManagerExtensions), nameof(TagManagerExtensions.TagIDToName))]
     public static string TagIDToName(ITagManager? tagManager, int tagID)
