@@ -1,3 +1,13 @@
+# ⚠️⚠️⚠️ **WARNING** ⚠️⚠️⚠️
+
+# **❌ 不要 star，更不要 fork 项目备份 ❌**
+
+# **❌ DO NOT star, and DO NOT fork this project for backup ❌**
+
+# **否则我将视情况私有化此项目，你将永远无法获得任何更新**
+
+# **Otherwise, I may privatize this project at my discretion, and you will permanently lose access to all future updates**
+
 ## 不要问我怎么用
 - 作者不喜欢回复小白问题 因为他很忙 并且曾经是小白的时候受过心理创伤现在极度反社会 你应该找ai帮你
 - 最基本的使用是clone项目选择Ruri.RipperHook启动 通过RuriHookConfig.json配置游戏 默认会跳过动画导出 因为解析太慢了
@@ -13,5 +23,6 @@
 
 ## Special Thanks to:
 - **ds5678**: Original author.
+- **AnimeStudio**: For anything.
 - **nesrak1**: USCSandbox author.
 - **Razmoth**: For anything.
