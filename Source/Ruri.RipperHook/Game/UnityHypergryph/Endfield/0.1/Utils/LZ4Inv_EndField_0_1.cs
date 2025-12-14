@@ -1,8 +1,8 @@
 ﻿namespace Ruri.RipperHook.Crypto;
 
-public class LZ4_EndField_0_1 : LZ4
+public class LZ4Inv_EndField_0_1 : LZ4
 {
-    public new static LZ4_EndField_0_1 Instance => new();
+    public new static LZ4Inv_EndField_0_1 Instance => new();
 
     public override int Decompress(ReadOnlySpan<byte> cmp, Span<byte> dec)
     {

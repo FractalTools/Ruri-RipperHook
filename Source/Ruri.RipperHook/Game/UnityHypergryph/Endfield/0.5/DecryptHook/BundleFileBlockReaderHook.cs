@@ -3,6 +3,7 @@ using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.Crypto;
+using Ruri.RipperHook.EndFieldCommon;
 
 namespace Ruri.RipperHook.EndField_0_5;
 
@@ -18,7 +19,7 @@ public partial class EndField_0_5_Hook
 
             case CompressionType.Lz4:
             case CompressionType.Lz4HC:
-            case (CompressionType)5:
+            case (CompressionType)CustomCompressionType.Lz4Inv:
                 uint uncompressedSize = block.UncompressedSize;
                 byte[] uncompressedBytes = new byte[uncompressedSize];
                 var compressedSize = block.CompressedSize;
@@ -27,7 +28,7 @@ public partial class EndField_0_5_Hook
                 if (m_cachedBlockIndex == 0 && compressedBytes[..32].Count((byte)0xA6) > 5)
                     compressedBytes = fairGuardDecryptor.Decrypt(compressedBytes);
 
-                var bytesWritten = customLZ4.Decompress(compressedBytes, uncompressedBytes);
+                var bytesWritten = LZ4Inv_EndField_0_5.Instance.Decompress(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)
                 {
                     ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });

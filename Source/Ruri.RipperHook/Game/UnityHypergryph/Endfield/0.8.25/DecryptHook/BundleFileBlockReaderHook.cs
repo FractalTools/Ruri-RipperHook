@@ -1,10 +1,11 @@
-﻿using AssetRipper.IO.Files.BundleFiles;
+﻿using AssetRipper.Import.Logging;
+using AssetRipper.IO.Files.BundleFiles;
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
 using K4os.Compression.LZ4;
 using Ruri.RipperHook.Crypto;
-using AssetRipper.Import.Logging;
+using Ruri.RipperHook.EndFieldCommon;
 
 namespace Ruri.RipperHook.EndField_0_8_25;
 
@@ -34,7 +35,7 @@ public partial class EndField_0_8_25_Hook
                 }
                 break;
 
-            case (CompressionType)5: // Endfield Encrypted Block (Type 5)
+            case (CompressionType)CustomCompressionType.Lz4Inv: // Endfield Encrypted Block (Type 5)
                 {
                     var compressedSize = (int)block.CompressedSize;
                     var uncompressedSize = (int)block.UncompressedSize;
@@ -45,9 +46,7 @@ public partial class EndField_0_8_25_Hook
 
                     vfsDecryptor.Decrypt(compressedBytes);
 
-                    // 2. Decompress (LZ4Inv - 必须使用自定义混淆 LZ4)
-                    // AnimeStudio: LZ4Inv.Instance.Decompress
-                    var numWrite = customLZ4.Decompress(compressedBytes, uncompressedBytes);
+                    var numWrite = LZ4Inv_EndField_0_8_25.Instance.Decompress(compressedBytes, uncompressedBytes);
 
                     if (numWrite != uncompressedSize)
                     {

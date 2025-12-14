@@ -6,12 +6,10 @@ namespace Ruri.RipperHook.EndField_0_1;
 
 public partial class EndField_0_1_Hook : RipperHook
 {
-    public static LZ4_EndField_0_1 customLZ4;
     public static FairGuardDecryptor Decryptor;
 
     protected EndField_0_1_Hook()
     {
-        customLZ4 = new LZ4_EndField_0_1();
         Decryptor = new FairGuardDecryptor();
     }
 

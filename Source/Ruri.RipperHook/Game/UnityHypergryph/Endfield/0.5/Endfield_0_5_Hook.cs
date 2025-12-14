@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using AssetRipper.Primitives;
+﻿using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.EndFieldCommon;
 using Ruri.RipperHook.Crypto;
@@ -15,7 +14,6 @@ public partial class EndField_0_5_Hook : RipperHook
     public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.527x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f1";
 
-    private static LZ4_EndField_0_5 customLZ4;
     private static FairGuardDecryptor_EndField_0_5 fairGuardDecryptor;
 
     private static readonly List<ClassIDType> ClassesHook = new()
@@ -34,7 +32,6 @@ public partial class EndField_0_5_Hook : RipperHook
         ClassIDType.Light,
         ClassIDType.LineRenderer,
         ClassIDType.Material,
-        ClassIDType.Mesh,
         ClassIDType.MeshCollider,
         ClassIDType.MeshRenderer,
         ClassIDType.MonoScript,
@@ -62,7 +59,6 @@ public partial class EndField_0_5_Hook : RipperHook
 
     protected EndField_0_5_Hook()
     {
-        customLZ4 = new LZ4_EndField_0_5();
         fairGuardDecryptor = new FairGuardDecryptor_EndField_0_5();
     }
 

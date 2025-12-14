@@ -14,7 +14,6 @@ public partial class EndField_0_8_25_Hook : RipperHook
 {
     public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.825x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f1";
-    private static LZ4_EndField_0_8_25 customLZ4;
     private static VFSDecryptor vfsDecryptor;
 
     private static readonly List<ClassIDType> ClassesHook = new()
@@ -72,7 +71,6 @@ public partial class EndField_0_8_25_Hook : RipperHook
 
     protected EndField_0_8_25_Hook()
     {
-        customLZ4 = new LZ4_EndField_0_8_25();
         vfsDecryptor = new VFSDecryptor();
     }
 
@@ -80,14 +78,10 @@ public partial class EndField_0_8_25_Hook : RipperHook
     {
         additionalNamespaces.Add(typeof(EndFieldCommon_Hook).Namespace);
 
-        // 1. Hook 文件预加载 (支持多包切分)
         AddExtraHook(typeof(GameBundleHook).Namespace, () => { GameBundleHook.CustomFilePreInitialize = CustomFilePreInitialize; });
-        // 2. Hook 文件遍历 (识别后缀)
         AddExtraHook(typeof(PlatformGameStructureHook_CollectAssetBundles).Namespace, () => { PlatformGameStructureHook_CollectAssetBundles.CustomAssetBundlesCheck = CustomAssetBundlesCheck; });
-        // 3. Hook 魔数检查 (识别 Header)
         AddExtraHook(typeof(PlatformGameStructureHook_IsBundleHeader).Namespace, () => { PlatformGameStructureHook_IsBundleHeader.CustomAssetBundlesCheckMagicNum = CustomAssetBundlesCheckMagicNum; });
 
-        // 4. Hook Block 解密
         AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = CustomBlockCompression; });
 
         base.InitAttributeHook();
