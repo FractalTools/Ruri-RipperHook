@@ -1,5 +1,6 @@
 ## 不要问我怎么用
 - 作者不喜欢回复小白问题 因为他很忙 并且曾经是小白的时候受过心理创伤现在极度反社会 你应该找ai帮你
+- 最基本的使用是clone项目选择Ruri.RipperHook启动 通过RuriHookConfig.json配置游戏 默认会跳过动画导出 因为解析太慢了
 
 ## Feature
 - AssemblyDumper support
