@@ -1,3 +1,6 @@
+## 不要问我怎么用
+- 作者不喜欢回复小白问题 因为他很忙 并且曾经是小白的时候受过心理创伤现在极度反社会 你应该找ai帮你
+
 ## Feature
 - AssemblyDumper support
 - Free Shader Decompile (DX11)
