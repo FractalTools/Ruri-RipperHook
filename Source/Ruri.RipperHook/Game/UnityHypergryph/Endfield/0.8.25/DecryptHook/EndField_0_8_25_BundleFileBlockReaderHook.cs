@@ -46,7 +46,7 @@ public partial class EndField_0_8_25_Hook
 
                     vfsDecryptor.Decrypt(compressedBytes);
 
-                    var numWrite = LZ4Inv_EndField_0_8_25.Instance.Decompress(compressedBytes, uncompressedBytes);
+                    var numWrite = EndField_0_8_25_LZ4Inv.Instance.Decompress(compressedBytes, uncompressedBytes);
 
                     if (numWrite != uncompressedSize)
                     {
