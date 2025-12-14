@@ -34,7 +34,7 @@ public partial class GirlsFrontline2Common_Hook
                     if (!fileData.StartsWith(unityFSHead))
                     {
                         // 逻辑字节级一致：解密并替换 buffer
-                        fileData = RuriRuntimeHook.CurrentDecryptor.Decrypt(fileData).ToArray();
+                        fileData = Decryptor.Decrypt(fileData).ToArray();
                     }
                 }
 

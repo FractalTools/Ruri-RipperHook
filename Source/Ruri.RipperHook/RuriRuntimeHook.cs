@@ -14,10 +14,6 @@ public static class RuriRuntimeHook
     public static string gameName;
     public static string gameVer;
 
-    // [Refactor] 统一使用 CommonDecryptor，具体实现由各游戏Hook初始化时赋值
-    // 支持无参解密和带BlockIndex的解密
-    public static CommonDecryptor CurrentDecryptor { get; set; } = new CommonDecryptor();
-
     public static void Init(GameHookType gameName)
     {
         Console.ForegroundColor = ConsoleColor.Blue;

@@ -1,4 +1,4 @@
-﻿using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
+using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.HoukaiCommon;
 using Ruri.RipperHook.UnityMihoyo;
@@ -14,7 +14,7 @@ public partial class Houkai_7_1_Hook : RipperHook
 
     protected Houkai_7_1_Hook()
     {
-        RuriRuntimeHook.CurrentDecryptor = new Mr0kDecryptor(BH3ExpansionKey, BH3SBox, BH3InitVector, BH3BlockKey);
+        MihoyoCommon.Mr0kDecryptor = new Mr0kDecryptor(BH3ExpansionKey, BH3SBox, BH3InitVector, BH3BlockKey);
     }
 
     protected override void InitAttributeHook()

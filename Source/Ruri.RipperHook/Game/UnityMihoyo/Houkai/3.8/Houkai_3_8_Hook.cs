@@ -12,7 +12,7 @@ public partial class Houkai_3_8_Hook : RipperHook
 
     protected Houkai_3_8_Hook()
     {
-        RuriRuntimeHook.CurrentDecryptor = new Mr0kDecryptor(PackExpansionKey, blockKey: PackBlockKey);
+        MihoyoCommon.Mr0kDecryptor = new Mr0kDecryptor(PackExpansionKey, blockKey: PackBlockKey);
     }
 
     protected override void InitAttributeHook()

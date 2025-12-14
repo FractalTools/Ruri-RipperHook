@@ -40,7 +40,7 @@ public partial class StarRail_2_0_Hook : RipperHook
 
     protected StarRail_2_0_Hook()
     {
-        RuriRuntimeHook.CurrentDecryptor = new Mr0kDecryptor(Mr0kKey.Mr0kExpansionKey, initVector: Mr0kKey.Mr0kInitVector, blockKey: Mr0kKey.Mr0kBlockKey);
+        MihoyoCommon.Mr0kDecryptor = new Mr0kDecryptor(Mr0kKey.Mr0kExpansionKey, initVector: Mr0kKey.Mr0kInitVector, blockKey: Mr0kKey.Mr0kBlockKey);
     }
 
     protected override void InitAttributeHook()

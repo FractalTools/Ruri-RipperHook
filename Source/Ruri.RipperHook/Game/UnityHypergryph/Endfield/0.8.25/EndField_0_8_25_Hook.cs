@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.Crypto;
+using Ruri.RipperHook.EndField_0_5;
 using Ruri.RipperHook.EndFieldCommon;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
@@ -13,7 +14,8 @@ public partial class EndField_0_8_25_Hook : RipperHook
 {
     public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.825x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f1";
-    protected static LZ4_EndField_0_8_25 customLZ4;
+    private static LZ4_EndField_0_8_25 customLZ4;
+    private static VFSDecryptor vfsDecryptor;
 
     private static readonly List<ClassIDType> ClassesHook = new()
     {
@@ -71,7 +73,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
     protected EndField_0_8_25_Hook()
     {
         customLZ4 = new LZ4_EndField_0_8_25();
-        RuriRuntimeHook.CurrentDecryptor = new VFSDecryptor();
+        vfsDecryptor = new VFSDecryptor();
     }
 
     protected override void InitAttributeHook()

@@ -11,7 +11,7 @@ public partial class GirlsFrontline2_1_0_Hook : RipperHook
 
     protected GirlsFrontline2_1_0_Hook()
     {
-        RuriRuntimeHook.CurrentDecryptor = new XorDecryptor(XorKey);
+        GirlsFrontline2Common_Hook.Decryptor = new XorDecryptor(XorKey);
     }
 
     protected override void InitAttributeHook()

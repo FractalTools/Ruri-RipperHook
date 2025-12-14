@@ -24,7 +24,7 @@ public partial class UnityChinaCommon_Hook
         _this.Flags = (BundleFlags)reader.ReadInt32();
         if (_this.Flags.GetBlockInfoNeedPaddingAtStart())
         {
-            RuriRuntimeHook.CurrentDecryptor = new UnityChinaDecryptor(reader);
+            Decryptor = new UnityChinaDecryptor(reader);
             var version = UnityVersion.Parse(_this.UnityWebMinimumRevision);
             if (version.Major < 2020 ||                                                 // 2019 and earlier
                (version.Major == 2020 && version.Minor == 3 && version.Build <= 34) ||  // 2020.3.34 and earlier

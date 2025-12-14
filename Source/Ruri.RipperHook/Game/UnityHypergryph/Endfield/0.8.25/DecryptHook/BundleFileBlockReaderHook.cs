@@ -43,7 +43,7 @@ public partial class EndField_0_8_25_Hook
                     var compressedBytes = new BinaryReader(m_stream).ReadBytes(compressedSize);
                     var uncompressedBytes = new byte[uncompressedSize];
 
-                    RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes);
+                    vfsDecryptor.Decrypt(compressedBytes);
 
                     // 2. Decompress (LZ4Inv - 必须使用自定义混淆 LZ4)
                     // AnimeStudio: LZ4Inv.Instance.Decompress

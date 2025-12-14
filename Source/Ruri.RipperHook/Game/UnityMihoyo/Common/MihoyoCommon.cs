@@ -9,8 +9,11 @@ using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using System.Buffers;
 
 namespace Ruri.RipperHook.UnityMihoyo;
+
 public static class MihoyoCommon
 {
+    public static CommonDecryptor Mr0kDecryptor;
+
     enum CustomCompressionType
     {
         Lz4Mr0k = 5,
@@ -41,8 +44,8 @@ public static class MihoyoCommon
                 var compressedSize = block.CompressedSize;
                 Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
 
-                if (isMr0kGroup && Mr0kDecryptor.IsMr0k(compressedBytes))
-                    compressedBytes = RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes);
+                if (isMr0kGroup && UnityMihoyo.Mr0kDecryptor.IsMr0k(compressedBytes))
+                    compressedBytes = Mr0kDecryptor.Decrypt(compressedBytes);
 
                 int bytesWritten = isLz4Group ? LZ4Codec.Decode(compressedBytes, uncompressedBytes) : OodleHelper.Decompress(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)

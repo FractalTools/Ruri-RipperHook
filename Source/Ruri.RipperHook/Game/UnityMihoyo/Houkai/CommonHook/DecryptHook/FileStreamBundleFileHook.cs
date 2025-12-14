@@ -65,7 +65,7 @@ public partial class HoukaiCommon_Hook
 
             case (CompressionType)5:
                 if (Mr0kDecryptor.IsMr0k(compressedBytes))
-                    compressedBytes = RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes).ToArray();
+                    compressedBytes = MihoyoCommon.Mr0kDecryptor.Decrypt(compressedBytes).ToArray();
                 goto case CompressionType.Lz4HC;
 
             default:

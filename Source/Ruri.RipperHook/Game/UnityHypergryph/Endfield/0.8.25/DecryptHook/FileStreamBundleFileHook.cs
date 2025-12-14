@@ -6,7 +6,6 @@ using AssetRipper.IO.Files.Extensions;
 using K4os.Compression.LZ4;
 using Ruri.RipperHook.Crypto;
 using System.Numerics;
-using System.Reflection;
 
 namespace Ruri.RipperHook.EndField_0_8_25;
 
@@ -36,7 +35,7 @@ public partial class EndField_0_8_25_Hook
         // Metadata Decryption
         if ((Header.Flags & BundleFlags.CompressionTypeMask) != 0)
         {
-            RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes);
+            vfsDecryptor.Decrypt(compressedBytes);
 
             // 2. Decompress (Standard LZ4)
             var uncompressedBytes = new byte[uncompressedSize];

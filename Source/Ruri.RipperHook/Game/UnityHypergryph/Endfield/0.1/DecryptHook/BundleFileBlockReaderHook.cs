@@ -24,7 +24,7 @@ public partial class EndField_0_1_Hook
                 Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
 
                 if (m_cachedBlockIndex == 0)
-                    compressedBytes = RuriRuntimeHook.CurrentDecryptor.Decrypt(compressedBytes);
+                    compressedBytes = Decryptor.Decrypt(compressedBytes);
 
                 var bytesWritten = customLZ4.Decompress(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)
