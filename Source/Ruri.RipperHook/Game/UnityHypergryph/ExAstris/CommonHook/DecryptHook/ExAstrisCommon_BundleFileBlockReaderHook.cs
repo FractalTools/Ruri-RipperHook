@@ -2,6 +2,7 @@
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
+using Ruri.RipperHook.Crypto;
 
 namespace Ruri.RipperHook.ExAstrisCommon;
 
@@ -23,7 +24,7 @@ public partial class ExAstrisCommon_Hook
                 var compressedSize = block.CompressedSize;
                 Span<byte> compressedBytes = new BinaryReader(m_stream).ReadBytes((int)block.CompressedSize);
 
-                var bytesWritten = CustomLZ4.Decompress(compressedBytes, uncompressedBytes);
+                var bytesWritten = ExAstris_LZ4.Instance.Decompress(compressedBytes, uncompressedBytes);
                 if (bytesWritten < 0)
                 {
                     ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });
