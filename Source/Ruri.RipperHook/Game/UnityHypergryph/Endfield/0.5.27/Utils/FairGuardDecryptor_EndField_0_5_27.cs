@@ -3,7 +3,7 @@ using AssetRipper.Import.Logging;
 
 namespace Ruri.RipperHook.Crypto;
 
-public record class FairGuardDecryptor_EndField_0_5 : FairGuardDecryptor
+public record class FairGuardDecryptor_EndField_0_5_27 : FairGuardDecryptor
 {
     public override Span<byte> Decrypt(Span<byte> dataSpan)
     {

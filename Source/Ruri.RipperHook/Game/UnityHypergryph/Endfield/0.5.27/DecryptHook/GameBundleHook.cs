@@ -8,9 +8,9 @@ using System.Buffers.Binary;
 using System.Numerics;
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.EndField_0_5;
+namespace Ruri.RipperHook.EndField_0_5_27;
 
-public partial class EndField_0_5_Hook
+public partial class EndField_0_5_27_Hook
 {
     public static void CustomFilePreInitialize(GameBundle _this, IEnumerable<string> paths, List<FileBase> fileStack, FileSystem fileSystem, IDependencyProvider? dependencyProvider)
     {

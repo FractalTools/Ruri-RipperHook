@@ -7,14 +7,14 @@ using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.HookUtils.PlatformGameStructureHook_CollectAssetBundles;
 using Ruri.RipperHook.HookUtils.PlatformGameStructureHook_IsBundleHeader;
 
-namespace Ruri.RipperHook.EndField_0_5;
+namespace Ruri.RipperHook.EndField_0_5_27;
 
-public partial class EndField_0_5_Hook : RipperHook
+public partial class EndField_0_5_27_Hook : RipperHook
 {
     public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.527x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f1";
 
-    private static FairGuardDecryptor_EndField_0_5 fairGuardDecryptor;
+    private static FairGuardDecryptor_EndField_0_5_27 fairGuardDecryptor;
 
     private static readonly List<ClassIDType> ClassesHook = new()
     {
@@ -57,9 +57,9 @@ public partial class EndField_0_5_Hook : RipperHook
         ClassIDType.VFXRenderer
     };
 
-    protected EndField_0_5_Hook()
+    protected EndField_0_5_27_Hook()
     {
-        fairGuardDecryptor = new FairGuardDecryptor_EndField_0_5();
+        fairGuardDecryptor = new FairGuardDecryptor_EndField_0_5_27();
     }
 
     protected override void InitAttributeHook()

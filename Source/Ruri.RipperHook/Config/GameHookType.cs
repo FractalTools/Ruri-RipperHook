@@ -16,7 +16,7 @@ public enum GameHookType
     PunishingGrayRaven_2_11,
     AzurPromilia_0_1_1_3,
     EndField_0_1,
-    EndField_0_5,
+    EndField_0_5_27,
     EndField_0_8_25,
     GirlsFrontline2_1_0,
     ExAstris_1_0,

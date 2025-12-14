@@ -1,7 +1,7 @@
 ﻿using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.Crypto;
-using Ruri.RipperHook.EndField_0_5;
+using Ruri.RipperHook.EndField_0_5_27;
 using Ruri.RipperHook.EndFieldCommon;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;

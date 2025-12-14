@@ -3,9 +3,9 @@ using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using AssetRipper.SourceGenerated.Subclasses.VertexData;
 
-namespace Ruri.RipperHook.EndField_0_5;
+namespace Ruri.RipperHook.EndField_0_5_27;
 
-public partial class EndField_0_5_Hook
+public partial class EndField_0_5_27_Hook
 {
     [RetargetMethod(typeof(Mesh_2020_1_0_a19))]
     public void Mesh_ReadRelease(ref EndianSpanReader reader)

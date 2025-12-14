@@ -1,8 +1,8 @@
 ﻿namespace Ruri.RipperHook.Crypto;
 
-public class LZ4Inv_EndField_0_5 : LZ4
+public class LZ4Inv_EndField_0_5_27 : LZ4
 {
-    public new static LZ4Inv_EndField_0_5 Instance { get; } = new();
+    public new static LZ4Inv_EndField_0_5_27 Instance { get; } = new();
 
     /// <summary>
     /// 0.5 版本使用了独特的位运算混淆 Token

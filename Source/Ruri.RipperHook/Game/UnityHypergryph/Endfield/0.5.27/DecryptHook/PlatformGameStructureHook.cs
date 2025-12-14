@@ -2,9 +2,9 @@ using AssetRipper.IO.Endian;
 using Ruri.RipperHook.Crypto;
 using System.Reflection;
 
-namespace Ruri.RipperHook.EndField_0_5;
+namespace Ruri.RipperHook.EndField_0_5_27;
 
-public partial class EndField_0_5_Hook
+public partial class EndField_0_5_27_Hook
 {
     public static bool CustomAssetBundlesCheck(string filePath)
     {

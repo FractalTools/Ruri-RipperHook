@@ -6,9 +6,9 @@ using K4os.Compression.LZ4;
 using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.EndFieldCommon;
 
-namespace Ruri.RipperHook.EndField_0_5;
+namespace Ruri.RipperHook.EndField_0_5_27;
 
-public partial class EndField_0_5_Hook
+public partial class EndField_0_5_27_Hook
 {
     public static void CustomBlockCompression(FileStreamNode entry, Stream m_stream, StorageBlock block, SmartStream m_cachedBlockStream, CompressionType compressType, int m_cachedBlockIndex)
     {
@@ -43,7 +43,7 @@ public partial class EndField_0_5_Hook
                     if (m_cachedBlockIndex == 0 && compressedBytes[..32].Count((byte)0xA6) > 5)
                         compressedBytes = fairGuardDecryptor.Decrypt(compressedBytes);
 
-                    var bytesWritten = LZ4Inv_EndField_0_5.Instance.Decompress(compressedBytes, uncompressedBytes);
+                    var bytesWritten = LZ4Inv_EndField_0_5_27.Instance.Decompress(compressedBytes, uncompressedBytes);
                     if (bytesWritten < 0)
                     {
                         ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });
