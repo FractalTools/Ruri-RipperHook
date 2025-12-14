@@ -3,6 +3,7 @@ using AssetRipper.Import.Logging;
 using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.Streams;
 using AssetRipper.IO.Files.Streams.Smart;
+using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using System.Buffers.Binary;
 using System.Numerics;

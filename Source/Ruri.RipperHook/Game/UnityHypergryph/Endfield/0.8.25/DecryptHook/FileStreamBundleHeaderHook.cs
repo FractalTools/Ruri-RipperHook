@@ -3,6 +3,7 @@ using AssetRipper.IO.Files.BundleFiles;
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.Import.Logging;
 using System.Numerics;
+using Ruri.RipperHook.Crypto;
 
 namespace Ruri.RipperHook.EndField_0_8_25;
 

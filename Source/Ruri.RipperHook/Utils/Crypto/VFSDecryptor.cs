@@ -1,7 +1,6 @@
 using AssetRipper.IO.Endian;
-using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.EndField_0_8_25;
+namespace Ruri.RipperHook.Crypto;
 
 public record VFSDecryptor : CommonDecryptor
 {
