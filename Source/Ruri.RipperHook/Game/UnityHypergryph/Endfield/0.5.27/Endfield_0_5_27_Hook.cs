@@ -14,7 +14,7 @@ public partial class EndField_0_5_27_Hook : RipperHook
     public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.527x{(int)CustomEngineType.EndField}");
     public const string ClassHookVersion = "2021.3.34f1";
 
-    private static FairGuardDecryptor_EndField_0_5_27 fairGuardDecryptor;
+    private static EndField_0_5_27_FairGuardDecryptor fairGuardDecryptor;
 
     private static readonly List<ClassIDType> ClassesHook = new()
     {
@@ -59,7 +59,7 @@ public partial class EndField_0_5_27_Hook : RipperHook
 
     protected EndField_0_5_27_Hook()
     {
-        fairGuardDecryptor = new FairGuardDecryptor_EndField_0_5_27();
+        fairGuardDecryptor = new EndField_0_5_27_FairGuardDecryptor();
     }
 
     protected override void InitAttributeHook()

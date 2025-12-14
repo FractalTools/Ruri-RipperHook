@@ -43,7 +43,7 @@ public partial class EndField_0_5_27_Hook
                     if (m_cachedBlockIndex == 0 && compressedBytes[..32].Count((byte)0xA6) > 5)
                         compressedBytes = fairGuardDecryptor.Decrypt(compressedBytes);
 
-                    var bytesWritten = LZ4Inv_EndField_0_5_27.Instance.Decompress(compressedBytes, uncompressedBytes);
+                    var bytesWritten = EndField_0_5_27_LZ4Inv.Instance.Decompress(compressedBytes, uncompressedBytes);
                     if (bytesWritten < 0)
                     {
                         ARIntelnalReflection.ThrowNoBytesWrittenMethod.Invoke(null, new object[] { entry.PathFixed, compressType });
