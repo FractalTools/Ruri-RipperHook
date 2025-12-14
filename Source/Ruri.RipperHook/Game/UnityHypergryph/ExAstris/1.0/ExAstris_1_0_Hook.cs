@@ -8,7 +8,6 @@ public partial class ExAstris_1_0_Hook : RipperHook
 {
     protected ExAstris_1_0_Hook()
     {
-        ExAstrisCommon_Hook.CustomLZ4 = new ExAstris_LZ4();
     }
 
     protected override void InitAttributeHook()
