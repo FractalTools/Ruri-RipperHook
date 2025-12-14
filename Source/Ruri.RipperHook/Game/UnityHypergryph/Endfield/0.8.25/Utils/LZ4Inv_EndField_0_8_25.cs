@@ -2,7 +2,7 @@ namespace Ruri.RipperHook.Crypto;
 
 public class LZ4Inv_EndField_0_8_25 : LZ4
 {
-    public new static LZ4Inv_EndField_0_8_25 Instance => new();
+    public new static LZ4Inv_EndField_0_8_25 Instance { get; } = new();
 
     /// <summary>
     /// CB3 uses LZ4Inv logic:

@@ -2,7 +2,7 @@
 
 public class LZ4
 {
-    public static LZ4 Instance => new();
+    public static LZ4 Instance { get; } = new();
 
     public virtual int Decompress(ReadOnlySpan<byte> cmp, Span<byte> dec)
     {

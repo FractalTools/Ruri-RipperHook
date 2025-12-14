@@ -2,7 +2,7 @@
 
 public class LZ4Inv_EndField_0_5 : LZ4
 {
-    public new static LZ4Inv_EndField_0_5 Instance => new();
+    public new static LZ4Inv_EndField_0_5 Instance { get; } = new();
 
     /// <summary>
     /// 0.5 版本使用了独特的位运算混淆 Token
