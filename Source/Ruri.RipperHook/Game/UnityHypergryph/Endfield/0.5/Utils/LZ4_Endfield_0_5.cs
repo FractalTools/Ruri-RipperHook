@@ -1,6 +1,6 @@
 ﻿namespace Ruri.RipperHook.Crypto;
 
-public class LZ4_EndField_0_5 : LZ4_EndField_0_1
+public class LZ4_EndField_0_5 : LZ4
 {
     public new static LZ4_EndField_0_5 Instance => new();
 
@@ -16,4 +16,6 @@ public class LZ4_EndField_0_5 : LZ4_EndField_0_1
 
         return ((enc & 0b11) | enc >> 2, (lit & 0b11) | lit >> 2);
     }
+
+    protected override int GetChunkEnd(ReadOnlySpan<byte> cmp, ref int cmpPos) => cmp[cmpPos++] << 8 | cmp[cmpPos++] << 0;
 }

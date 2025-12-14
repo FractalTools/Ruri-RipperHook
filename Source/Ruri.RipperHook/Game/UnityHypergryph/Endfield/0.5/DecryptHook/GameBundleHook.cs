@@ -6,8 +6,7 @@ using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using System.Buffers.Binary;
 using System.Numerics;
-using Ruri.RipperHook.EndField_0_8_25;
-using Ruri.RipperHook.Crypto; // Use 0.8.25 Utils for VFS constants
+using Ruri.RipperHook.Crypto;
 
 namespace Ruri.RipperHook.EndField_0_5;
 
