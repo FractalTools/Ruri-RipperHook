@@ -21,7 +21,6 @@ public partial class EndField_0_8_25_Hook
 
             case CompressionType.Lz4:
             case CompressionType.Lz4HC:
-                // 标准 LZ4，用于普通压缩
                 {
                     uint uncompressedSize = block.UncompressedSize;
                     byte[] uncompressedBytes = new byte[uncompressedSize];
@@ -47,13 +46,6 @@ public partial class EndField_0_8_25_Hook
                     vfsDecryptor.Decrypt(compressedBytes);
 
                     var numWrite = EndField_0_8_25_LZ4Inv.Instance.Decompress(compressedBytes, uncompressedBytes);
-
-                    if (numWrite != uncompressedSize)
-                    {
-                        // 如果自定义解压也失败，尝试回退到标准 LZ4 (防止某些块未加密)
-                        Logger.Warning($"[EndField] Custom LZ4 failed (Expected {uncompressedSize}, Got {numWrite}). Retrying with Standard LZ4...");
-                        numWrite = LZ4Codec.Decode(compressedBytes, uncompressedBytes);
-                    }
 
                     if (numWrite != uncompressedSize)
                     {
