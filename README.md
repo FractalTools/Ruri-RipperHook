@@ -2,12 +2,13 @@
 
 # **❌ 不要 star，更不要 fork 项目备份 保持低调 ❌**
 
-# **❌ DO NOT star, and DO NOT fork this project for backup Keep a low profile ❌**
+# **❌ DO NOT star, and DO NOT fork this project for backup. Keep a low profile ❌**
 
 # **否则我将视情况私有化此项目，你将永远无法获得任何更新**
 # **唯一的例外是PR 但合并或拒绝后立刻删除fork**
 
-# **Otherwise, I may privatize this project at my discretion, and you will permanently lose access to all future updates**
+# **Otherwise, I may privatize this project at my discretion, and you will permanently lose access to all future updates
+The only exception is submitting a PR, but the fork must be deleted immediately after it is merged or rejected**
 
 ## 不要问我怎么用
 - 作者不喜欢回复小白问题 因为他很忙 并且曾经是小白的时候受过心理创伤现在极度反社会 你应该找ai帮你
