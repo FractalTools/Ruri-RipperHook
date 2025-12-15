@@ -1,10 +1,11 @@
 # ⚠️⚠️⚠️ **WARNING** ⚠️⚠️⚠️
 
-# **❌ 不要 star，更不要 fork 项目备份 ❌**
+# **❌ 不要 star，更不要 fork 项目备份 保持低调 ❌**
 
-# **❌ DO NOT star, and DO NOT fork this project for backup ❌**
+# **❌ DO NOT star, and DO NOT fork this project for backup Keep a low profile ❌**
 
 # **否则我将视情况私有化此项目，你将永远无法获得任何更新**
+# **唯一的例外是PR 但合并或拒绝后立刻删除fork**
 
 # **Otherwise, I may privatize this project at my discretion, and you will permanently lose access to all future updates**
 
