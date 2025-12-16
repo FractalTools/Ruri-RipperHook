@@ -261,7 +261,7 @@ public abstract class RipperHook
         dummyThis.ReadRelease(ref reader);
 
         // 3. 深度拷贝回原对象
-        ReflectionExtensions.ClassCopy(dummyThis, realThis);
+        ReflectionExtensions.ClassDeepCopy(dummyThis, realThis);
     }
 
     protected void SetPrivateField(Type type, string name, object newValue)

@@ -146,7 +146,7 @@ public static class ReflectionExtensions
     /// 顶配版深度复制：将 src 的所有字段递归复制到 dst。
     /// 支持跨程序集同名类（Duck Typing）、集合（List/Array/Dict）转换、循环引用处理。
     /// </summary>
-    public static void ClassCopy(object src, object dst)
+    public static void ClassDeepCopy(object src, object dst)
     {
         if (src == null) throw new ArgumentNullException(nameof(src));
         if (dst == null) throw new ArgumentNullException(nameof(dst));
