@@ -4,7 +4,7 @@ namespace Ruri.RipperHook.UnityChinaCommon;
 
 public partial class UnityChinaCommon_Hook : RipperHook
 {
-    public static UnityChinaDecryptor Decryptor { get; set; }
+    public static UnityChinaDecryptor unityChinaDecryptor { get; set; }
 
     public static void SetKey(string name, string key)
     {
