@@ -22,6 +22,10 @@ public partial class EndField_0_8_25_Hook
         _this.BonesAABB.ReadRelease_ArrayAlign_Asset(ref reader);
         _this.VariableBoneCountWeights.ReadRelease(ref reader);
         _this.MeshCompression = reader.ReadByte();
+        if (_this.MeshCompression == 4)
+        {
+            _this.MeshCompression = 0;
+        }
         _this.IsReadable = reader.ReadBoolean();
         _this.KeepVertices = reader.ReadBoolean();
         _this.KeepIndices = reader.ReadBoolean();
