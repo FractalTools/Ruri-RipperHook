@@ -16,7 +16,7 @@ public partial class EndField_0_1_Hook : RipperHook
     protected override void InitAttributeHook()
     {
         additionalNamespaces.Add(typeof(EndFieldCommon_Hook).Namespace);
-        AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = EndField_0_1_Hook.CustomBlockCompression; });
+        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = EndField_0_1_Hook.CustomBlockCompression; });
         base.InitAttributeHook();
     }
 }

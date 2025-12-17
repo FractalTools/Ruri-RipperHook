@@ -1,7 +1,6 @@
 ﻿using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.Crypto;
-using Ruri.RipperHook.EndField_0_5_27;
 using Ruri.RipperHook.EndFieldCommon;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
@@ -36,7 +35,7 @@ public partial class EndField_0_8_25_Hook : RipperHook
         ClassIDType.Light,
         ClassIDType.LineRenderer,
         ClassIDType.Material,
-        // 需要自定义加载
+        // Mesh 直接复用 0.5.27 的逻辑
         // ClassIDType.Mesh,
         ClassIDType.MeshCollider,
         ClassIDType.MeshRenderer,
@@ -78,11 +77,13 @@ public partial class EndField_0_8_25_Hook : RipperHook
     {
         additionalNamespaces.Add(typeof(EndFieldCommon_Hook).Namespace);
 
-        AddExtraHook(typeof(GameBundleHook).Namespace, () => { GameBundleHook.CustomFilePreInitialize = CustomFilePreInitialize; });
-        AddExtraHook(typeof(PlatformGameStructureHook_CollectAssetBundles).Namespace, () => { PlatformGameStructureHook_CollectAssetBundles.CustomAssetBundlesCheck = CustomAssetBundlesCheck; });
-        AddExtraHook(typeof(PlatformGameStructureHook_IsBundleHeader).Namespace, () => { PlatformGameStructureHook_IsBundleHeader.CustomAssetBundlesCheckMagicNum = CustomAssetBundlesCheckMagicNum; });
+        AddMethodHook(typeof(EndField_0_5_27.EndField_0_5_27_Hook), nameof(EndField_0_5_27.EndField_0_5_27_Hook.Mesh_ReadRelease));
 
-        AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = CustomBlockCompression; });
+        AddNameSpaceHook(typeof(GameBundleHook).Namespace, () => { GameBundleHook.CustomFilePreInitialize = CustomFilePreInitialize; });
+        AddNameSpaceHook(typeof(PlatformGameStructureHook_CollectAssetBundles).Namespace, () => { PlatformGameStructureHook_CollectAssetBundles.CustomAssetBundlesCheck = CustomAssetBundlesCheck; });
+        AddNameSpaceHook(typeof(PlatformGameStructureHook_IsBundleHeader).Namespace, () => { PlatformGameStructureHook_IsBundleHeader.CustomAssetBundlesCheckMagicNum = CustomAssetBundlesCheckMagicNum; });
+
+        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = CustomBlockCompression; });
 
         base.InitAttributeHook();
 

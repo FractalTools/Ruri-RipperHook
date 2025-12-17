@@ -13,7 +13,7 @@ public partial class AR_StaticMeshSeparation_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        AddExtraHook(typeof(ExportHandlerHook).Namespace, () => { ExportHandlerHook.CustomAssetProcessors.Add(StaticMeshProcessor); });
+        AddNameSpaceHook(typeof(ExportHandlerHook).Namespace, () => { ExportHandlerHook.CustomAssetProcessors.Add(StaticMeshProcessor); });
         base.InitAttributeHook();
     }
 }

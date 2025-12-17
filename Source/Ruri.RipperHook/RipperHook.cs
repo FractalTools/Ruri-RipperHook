@@ -17,6 +17,8 @@ public abstract class RipperHook
     protected List<string> additionalNamespaces = new();
     protected List<string> excludedNamespaces = new();
 
+    protected List<MethodInfo> methodHooks = new();
+
     // [Fix] 使用自定义委托替代 Action<object, ref EndianSpanReader>
     private static readonly Dictionary<Type, (MethodInfo? CreateMethod, UnityVersion TargetVersion, ReadReleaseDelegate? Callback)> _genericHookCache = new();
 
@@ -25,10 +27,27 @@ public abstract class RipperHook
         InitAttributeHook();
     }
 
-    protected virtual void AddExtraHook(string nameSpace, Action action)
+    protected virtual void AddNameSpaceHook(string nameSpace, Action action)
     {
         additionalNamespaces.Add(nameSpace);
         action();
+    }
+
+    /// <summary>
+    /// 添加外部 Hook 方法
+    /// 允许指定其他命名空间下的特定类中的特定方法作为 Hook
+    /// 避免引入整个命名空间导致不必要的 Hook 生效
+    /// </summary>
+    /// <param name="type">目标类类型</param>
+    /// <param name="methodName">目标方法名</param>
+    protected virtual void AddMethodHook(Type type, string methodName)
+    {
+        var method = type.GetMethod(methodName, ReflectionExtensions.AnyBindFlag());
+        if (method == null)
+        {
+            throw new Exception($"AddExternalHook Failed: Could not find method '{methodName}' in type '{type.FullName}'");
+        }
+        methodHooks.Add(method);
     }
 
     protected virtual void InitAttributeHook()
@@ -43,9 +62,14 @@ public abstract class RipperHook
 
         // 包括处理嵌套类
         var allTypes = types.Concat(types.SelectMany(t => t.GetNestedTypes(bindingFlags)));
-        var methods = allTypes
+
+        // 扫描符合命名空间的方法
+        var scannedMethods = allTypes
             .Where(t => t.Namespace != null && namespacesToConsider.Any(ns => t.Namespace.StartsWith(ns)))
             .SelectMany(t => t.GetMethods(bindingFlags));
+
+        // 合并手动指定的额外方法
+        var methods = scannedMethods.Concat(methodHooks).Distinct();
 
         // 方法转发处理
         var targetMethods = methods.Where(m => m.GetCustomAttributes<RetargetMethodAttribute>(true).Any());

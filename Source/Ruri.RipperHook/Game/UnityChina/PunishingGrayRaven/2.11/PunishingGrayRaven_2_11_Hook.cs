@@ -13,7 +13,7 @@ public partial class PunishingGrayRaven_2_11_Hook : RipperHook
     protected override void InitAttributeHook()
     {
         additionalNamespaces.Add(typeof(UnityChinaCommon_Hook).Namespace);
-        AddExtraHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = UnityChinaCommon_Hook.CustomBlockCompression; });
+        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = UnityChinaCommon_Hook.CustomBlockCompression; });
         base.InitAttributeHook();
     }
 }
