@@ -5,6 +5,7 @@ using AssetRipper.SourceGenerated.Enums;
 using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using System.Numerics;
+using Array = System.Array;
 
 namespace Ruri.RipperHook.AR_StaticMeshSeparation
 {
