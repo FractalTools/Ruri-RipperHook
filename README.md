@@ -20,10 +20,11 @@
 - Free Shader Decompile (DX11)
 
 ## Todo
-- 需要优化Block格式的AB包解析(WMW/VFS/BLK等) 内存拆分读取容易过于碎片化导致内存无法分配 (临时方案是先dump到磁盘再读取)
+- 需要优化Block格式的AB包解析(WMW/VFS/BLK等) 内存拆分读取容易过于碎片化导致内存无法分配 (临时方案是先dump到磁盘再读取) 一个想法是使用mmap
 - 更小的AssemblyDumper生成 目前有太多代码实际上不需要生成 最小能优化到1mb以下的dll 只需要里面的定义和Read就够了
 - AssemblyDumper生成工作流简化
 - 如果不同游戏版本依赖同样的加密 新版本应该直接依赖旧版本 任何相同的代码都不应该出现2次
+- https://github.com/YYadorigi/HLSL-Decompiler 利用wrapper官方反编译保证完全准确，Unity 的 shader blob 是无符号的，cb 信息在 ShaderLab，理论上可以向 shader blob（DXBC / DXIL / SPIR-V / Metal）添加符号信息实现反编译出准确的 cb，但需要研究对应容器格式，但过于 hacky 且不可维护。(USC采用的是自行解析汇编所以能完美支持cb反编译 如果使用外置反编译器就只能解析shaderlab的cb符号并注入shader blob了)
 
 ## Special Thanks to:
 - **ds5678**: Original author.
