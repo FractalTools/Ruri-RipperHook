@@ -1,0 +1,25 @@
+# How to use:
+#	- Update [engine].
+#	- Define new key [<name>].
+#	- Update values of fields.
+#	- Update name in [engine].
+
+[engine]
+name = "dummy"
+
+[dummy]
+delay = 0 # seconds to wait before dumping.
+binary = "UnityPlayer.dll" # name of binary to dump from.
+output_dir = "" # output folder (defaults to "cwd/<name>|data/data/<pkg_name>/<name>" if empty).
+transfer = 265 # TransferInstruction flags (check transfer.h for possible values).
+json_dump = true # Enable json output (classes.json/info.json).
+text_dump = true #	Enable text files output (RTTI.dump/structs.dump).
+binary_dump = true # Enable binary files output (strings.dat/structs.dat).
+exclude = [1, 2, 3, 4] # List of types to exclude while dumping.
+version = "2021.3.34f5" # GetUnityBuildFullVersion RVA or string (ex '2017.3.4f1').
+common_strings_begin = 0x1B20BB8 # Unity::CommonString::BufferBegin RVA.
+common_strings_end = 0x1B20BC0 # Unity::CommonString::BufferEnd RVA.
+rtti = 0x1EF5270 # RTTI::ms_runtimeTypes RVA.
+type_tree_ctor = 0x771200 # TypeTree::TypeTree RVA.
+type_tree = 0x784110 # TypeTreeCache::GetTypeTree or GenerateTypeTree RVA (TypeTreeCache::GetTypeTree: version > 2019.x.x else GenerateTypeTree).
+produce = 0x2FC9F0 # Object::Produce RVA.
