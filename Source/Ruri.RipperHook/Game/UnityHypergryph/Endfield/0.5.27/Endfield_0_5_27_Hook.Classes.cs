@@ -1,0 +1,45 @@
+using AssetRipper.SourceGenerated;
+using Ruri.RipperHook.Attributes;
+
+namespace Ruri.RipperHook.Endfield;
+
+[TypeTreeHook(ClassIDType.AnimationClip)]
+[TypeTreeHook(ClassIDType.Animator)]
+[TypeTreeHook(ClassIDType.AnimatorController)]
+[TypeTreeHook(ClassIDType.AssetBundle)]
+[TypeTreeHook(ClassIDType.AudioManager)]
+[TypeTreeHook(ClassIDType.BillboardRenderer)]
+[TypeTreeHook(ClassIDType.BoxCollider)]
+[TypeTreeHook(ClassIDType.CanvasGroup)]
+[TypeTreeHook(ClassIDType.CapsuleCollider)]
+[TypeTreeHook(ClassIDType.CharacterController)]
+[TypeTreeHook(ClassIDType.GraphicsSettings)]
+[TypeTreeHook(ClassIDType.Light)]
+[TypeTreeHook(ClassIDType.LineRenderer)]
+[TypeTreeHook(ClassIDType.Material)]
+[TypeTreeHook(ClassIDType.MeshCollider)]
+[TypeTreeHook(ClassIDType.MeshRenderer)]
+[TypeTreeHook(ClassIDType.MonoScript)]
+[TypeTreeHook(ClassIDType.NavMeshData_238)]
+[TypeTreeHook(ClassIDType.ParticleSystem)]
+[TypeTreeHook(ClassIDType.ParticleSystemRenderer)]
+[TypeTreeHook(ClassIDType.ProceduralMaterial)]
+[TypeTreeHook(ClassIDType.QualitySettings)]
+[TypeTreeHook(ClassIDType.ReflectionProbe)]
+[TypeTreeHook(ClassIDType.RenderSettings)]
+[TypeTreeHook(ClassIDType.Shader)]
+[TypeTreeHook(ClassIDType.SkinnedMeshRenderer)]
+[TypeTreeHook(ClassIDType.SphereCollider)]
+[TypeTreeHook(ClassIDType.SpriteMask)]
+[TypeTreeHook(ClassIDType.SpriteRenderer)]
+[TypeTreeHook(ClassIDType.SpriteShapeRenderer)]
+[TypeTreeHook(ClassIDType.Terrain)]
+[TypeTreeHook(ClassIDType.TerrainCollider)]
+[TypeTreeHook(ClassIDType.TerrainData)]
+[TypeTreeHook(ClassIDType.TerrainLayer)]
+[TypeTreeHook(ClassIDType.TilemapRenderer)]
+[TypeTreeHook(ClassIDType.TrailRenderer)]
+[TypeTreeHook(ClassIDType.VFXRenderer)]
+public partial class EndField_0_5_27_Hook
+{
+}

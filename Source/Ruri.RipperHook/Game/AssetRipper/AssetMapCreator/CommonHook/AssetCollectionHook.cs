@@ -3,7 +3,7 @@ using AssetRipper.Assets.Collections;
 using AssetRipper.GUI.Web;
 using AssetRipper.SourceGenerated;
 
-namespace Ruri.RipperHook.AR_AssetMapCreator;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_AssetMapCreator_Hook
 {

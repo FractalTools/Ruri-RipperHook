@@ -41,10 +41,16 @@ public static class RuriRuntimeHook
             gameVer = string.Join(".", na.Skip(1));
         }
 
-        var type = Type.GetType("Ruri.RipperHook." + name + "." + name + "_Hook");
-        if (type == null)
-            throw new InvalidOperationException($"Could not find Hook class for {name}");
+        // Scan for type by Name in the current assembly, ignoring namespace
+        var expectedTypeName = name + "_Hook";
+        var type = typeof(RuriRuntimeHook).Assembly.GetTypes()
+            .FirstOrDefault(t => t.Name == expectedTypeName);
 
-        currentGameHook[hookName] = (RipperHook)Activator.CreateInstance(type, true);
+        if (type == null)
+            throw new InvalidOperationException($"Could not find Hook class for {name} (Expected type: {expectedTypeName})");
+
+        var hook = (RipperHook)Activator.CreateInstance(type, true);
+        hook.Initialize();
+        currentGameHook[hookName] = hook;
     }
 }

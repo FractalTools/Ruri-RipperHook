@@ -6,7 +6,7 @@ using AssetRipper.IO.Files.Extensions;
 using K4os.Compression.LZ4;
 using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class HoukaiCommon_Hook
 {

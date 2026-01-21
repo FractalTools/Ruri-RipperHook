@@ -3,7 +3,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_25;
 using AssetRipper.SourceGenerated.Extensions;
 using System.Collections;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation
+namespace Ruri.RipperHook.AR
 {
 	internal static class StaticMeshSeparationExtensions
 	{

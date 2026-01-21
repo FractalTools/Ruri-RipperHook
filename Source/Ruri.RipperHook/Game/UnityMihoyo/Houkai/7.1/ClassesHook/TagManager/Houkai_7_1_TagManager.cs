@@ -4,7 +4,7 @@ using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated.Classes.ClassID_78;
 using AssetRipper.SourceGenerated.Subclasses.SortingLayerEntry;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

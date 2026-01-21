@@ -1,9 +1,11 @@
-﻿using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
-using Ruri.RipperHook.UnityChinaCommon;
+using Ruri.RipperHook.Attributes;
+using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
+using Ruri.RipperHook.UnityChina;
 
-namespace Ruri.RipperHook.PunishingGrayRaven_2_11;
+namespace Ruri.RipperHook.PunishingGrayRaven;
 
-public partial class PunishingGrayRaven_2_11_Hook : RipperHook
+[GameHook("PunishingGrayRaven", "2.11")]
+public partial class PunishingGrayRaven_2_11_Hook : UnityChinaCommon_Hook
 {
     protected PunishingGrayRaven_2_11_Hook()
     {
@@ -12,8 +14,7 @@ public partial class PunishingGrayRaven_2_11_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        additionalNamespaces.Add(typeof(UnityChinaCommon_Hook).Namespace);
-        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = UnityChinaCommon_Hook.CustomBlockCompression; });
+RegisterModule(new BundleFileBlockReaderHook(UnityChinaCommon_Hook.CustomBlockCompression));
         base.InitAttributeHook();
     }
 }

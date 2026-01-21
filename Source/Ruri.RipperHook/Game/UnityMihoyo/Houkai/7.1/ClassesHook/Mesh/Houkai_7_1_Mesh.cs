@@ -4,7 +4,7 @@ using AssetRipper.SourceGenerated.Subclasses.BoneWeights4;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using AssetRipper.SourceGenerated.Subclasses.VertexData;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

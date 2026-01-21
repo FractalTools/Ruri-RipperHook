@@ -3,7 +3,7 @@ using AssetRipper.IO.Files.BundleFiles;
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class HoukaiCommon_Hook
 {

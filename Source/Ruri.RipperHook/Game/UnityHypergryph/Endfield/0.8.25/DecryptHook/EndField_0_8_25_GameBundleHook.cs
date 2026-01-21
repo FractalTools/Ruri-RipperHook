@@ -8,7 +8,7 @@ using Ruri.RipperHook.HookUtils.GameBundleHook;
 using System.Buffers.Binary;
 using System.Numerics;
 
-namespace Ruri.RipperHook.EndField_0_8_25;
+namespace Ruri.RipperHook.Endfield;
 
 public partial class EndField_0_8_25_Hook
 {

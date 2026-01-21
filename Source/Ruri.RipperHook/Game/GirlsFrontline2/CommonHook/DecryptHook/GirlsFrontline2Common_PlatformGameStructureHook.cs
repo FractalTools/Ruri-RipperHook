@@ -3,7 +3,7 @@ using AssetRipper.Import.Structure.Platforms;
 using AssetRipper.IO.Endian;
 using System.Reflection;
 
-namespace Ruri.RipperHook.GirlsFrontline2Common;
+namespace Ruri.RipperHook.GirlsFrontline2;
 
 public partial class GirlsFrontline2Common_Hook
 {

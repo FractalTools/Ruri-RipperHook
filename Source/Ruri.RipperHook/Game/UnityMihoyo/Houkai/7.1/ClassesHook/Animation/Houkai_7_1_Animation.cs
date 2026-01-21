@@ -2,7 +2,7 @@
 using AssetRipper.SourceGenerated.Classes.ClassID_111;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_AnimationClip;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

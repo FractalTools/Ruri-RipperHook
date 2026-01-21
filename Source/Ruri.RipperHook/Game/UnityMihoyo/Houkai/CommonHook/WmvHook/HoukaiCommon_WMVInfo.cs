@@ -1,6 +1,6 @@
 ﻿using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public struct WMVInfo
 {

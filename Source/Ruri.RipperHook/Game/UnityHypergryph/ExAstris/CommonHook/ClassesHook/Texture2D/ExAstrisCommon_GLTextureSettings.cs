@@ -1,7 +1,7 @@
 ﻿using AssetRipper.IO.Endian;
 using AssetRipper.SourceGenerated.Subclasses.GLTextureSettings;
 
-namespace Ruri.RipperHook.ExAstrisCommon;
+namespace Ruri.RipperHook.ExAstris;
 
 public partial class ExAstrisCommon_Hook
 {

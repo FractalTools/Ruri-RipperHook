@@ -4,7 +4,7 @@ using AssetRipper.IO.Files.Streams; // MultiFileStream 通常移到了这里
 using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 
-namespace Ruri.RipperHook.GirlsFrontline2Common;
+namespace Ruri.RipperHook.GirlsFrontline2;
 
 public partial class GirlsFrontline2Common_Hook
 {

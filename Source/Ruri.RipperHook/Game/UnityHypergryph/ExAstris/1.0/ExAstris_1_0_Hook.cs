@@ -1,10 +1,12 @@
-﻿using Ruri.RipperHook.Crypto;
-using Ruri.RipperHook.ExAstrisCommon;
+using Ruri.RipperHook.Attributes;
+using Ruri.RipperHook.Crypto;
+using Ruri.RipperHook.ExAstris;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 
-namespace Ruri.RipperHook.ExAstris_1_0;
+namespace Ruri.RipperHook.ExAstris;
 
-public partial class ExAstris_1_0_Hook : RipperHook
+[GameHook("ExAstris", "1.0")]
+public partial class ExAstris_1_0_Hook : ExAstrisCommon_Hook
 {
     protected ExAstris_1_0_Hook()
     {
@@ -12,8 +14,7 @@ public partial class ExAstris_1_0_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        additionalNamespaces.Add(typeof(ExAstrisCommon_Hook).Namespace);
-        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = ExAstrisCommon_Hook.CustomBlockCompression; });
+RegisterModule(new BundleFileBlockReaderHook(ExAstrisCommon_Hook.CustomBlockCompression));
         base.InitAttributeHook();
     }
 }

@@ -4,7 +4,7 @@ using AssetRipper.Processing.Configuration;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 
-namespace Ruri.RipperHook.AR_BundledAssetsExportMode;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_BundledAssetsExportMode_Hook
 {

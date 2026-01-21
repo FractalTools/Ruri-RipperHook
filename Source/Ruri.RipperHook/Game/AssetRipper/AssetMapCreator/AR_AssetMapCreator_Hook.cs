@@ -1,8 +1,11 @@
-﻿using AssetRipper.SourceGenerated;
+using Ruri.RipperHook.Attributes;
+using AssetRipper.SourceGenerated;
 using System.Text;
+using Ruri.RipperHook.HookUtils.ExportHandlerHook;
 
-namespace Ruri.RipperHook.AR_AssetMapCreator;
+namespace Ruri.RipperHook.AR;
 
+[GameHook("AR_AssetMapCreator")]
 public partial class AR_AssetMapCreator_Hook : RipperHook
 {
     public static Dictionary<string, HashSet<ClassIDType>> assetClassIDLookup = new Dictionary<string, HashSet<ClassIDType>>();

@@ -3,7 +3,7 @@ using AssetRipper.Primitives;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 
-namespace Ruri.RipperHook.GirlsFrontline2Common;
+namespace Ruri.RipperHook.GirlsFrontline2;
 
 public partial class GirlsFrontline2Common_Hook
 {

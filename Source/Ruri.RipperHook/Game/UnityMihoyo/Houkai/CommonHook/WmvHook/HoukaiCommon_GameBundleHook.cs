@@ -6,7 +6,7 @@ using AssetRipper.IO.Files.Streams.Smart; // 引用 SmartStream
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class HoukaiCommon_Hook
 {

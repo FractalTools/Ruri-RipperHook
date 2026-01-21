@@ -2,7 +2,7 @@
 using AssetRipper.SourceGenerated.Classes.ClassID_198;
 using AssetRipper.SourceGenerated.Subclasses.MinMaxCurve;
 
-namespace Ruri.RipperHook.ExAstrisCommon;
+namespace Ruri.RipperHook.ExAstris;
 
 public partial class ExAstrisCommon_Hook
 {

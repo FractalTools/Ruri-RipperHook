@@ -6,7 +6,7 @@ using AssetRipper.SourceGenerated.Subclasses.PPtrCurve;
 using AssetRipper.SourceGenerated.Subclasses.QuaternionCurve;
 using AssetRipper.SourceGenerated.Subclasses.Vector3Curve;
 
-namespace Ruri.RipperHook.ExAstrisCommon;
+namespace Ruri.RipperHook.ExAstris;
 
 public partial class ExAstrisCommon_Hook
 {

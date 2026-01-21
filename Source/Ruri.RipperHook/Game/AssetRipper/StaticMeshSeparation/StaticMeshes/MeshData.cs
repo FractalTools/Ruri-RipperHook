@@ -7,7 +7,7 @@ using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using System.Numerics;
 using Array = System.Array;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation
+namespace Ruri.RipperHook.AR
 {
 	/// <summary>
 	/// 

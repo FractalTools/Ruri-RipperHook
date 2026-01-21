@@ -4,7 +4,7 @@ using AssetRipper.Import.Logging;
 using AssetRipper.IO.Files;
 using AssetRipper.Processing;
 
-namespace Ruri.RipperHook.AR_SkipStreamingAssets;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_SkipStreamingAssets_Hook
 {

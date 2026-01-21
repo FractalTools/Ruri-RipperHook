@@ -4,7 +4,7 @@ using AssetRipper.SourceGenerated.Subclasses.BuiltinShaderSettings;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_Material;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_Shader;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

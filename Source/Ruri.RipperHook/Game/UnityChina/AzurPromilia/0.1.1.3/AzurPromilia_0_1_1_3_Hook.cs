@@ -1,9 +1,11 @@
-﻿using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
-using Ruri.RipperHook.UnityChinaCommon;
+using Ruri.RipperHook.Attributes;
+using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
+using Ruri.RipperHook.UnityChina;
 
-namespace Ruri.RipperHook.AzurPromilia_0_1_1_3;
+namespace Ruri.RipperHook.AzurPromilia;
 
-public partial class AzurPromilia_0_1_1_3_Hook : RipperHook
+[GameHook("AzurPromilia", "0.1.1.3")]
+public partial class AzurPromilia_0_1_1_3_Hook : UnityChinaCommon_Hook
 {
     protected AzurPromilia_0_1_1_3_Hook()
     {
@@ -12,8 +14,7 @@ public partial class AzurPromilia_0_1_1_3_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        additionalNamespaces.Add(typeof(UnityChinaCommon_Hook).Namespace);
-        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = UnityChinaCommon_Hook.CustomBlockCompression; });
+RegisterModule(new BundleFileBlockReaderHook(UnityChinaCommon_Hook.CustomBlockCompression));
         base.InitAttributeHook();
     }
 }

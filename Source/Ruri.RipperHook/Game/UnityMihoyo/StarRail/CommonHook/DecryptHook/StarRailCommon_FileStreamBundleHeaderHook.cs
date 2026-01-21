@@ -3,7 +3,7 @@ using AssetRipper.IO.Files.BundleFiles;
 using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.Text.Html;
 
-namespace Ruri.RipperHook.StarRailCommon;
+namespace Ruri.RipperHook.StarRail;
 
 public partial class StarRailCommon_Hook
 {

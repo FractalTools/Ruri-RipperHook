@@ -5,7 +5,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 
-namespace Ruri.RipperHook.AR_ShaderDecompiler;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_ShaderDecompiler_Hook
 {

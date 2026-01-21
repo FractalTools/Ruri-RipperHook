@@ -4,25 +4,38 @@ using AssetRipper.IO.Files.Streams;
 using AssetRipper.IO.Files.Streams.Smart;
 using System.Buffers;
 using System.Reflection;
+using Ruri.RipperHook.Core;
 
 namespace Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 
-public class BundleFileBlockReaderHook : CommonHook
+public class BundleFileBlockReaderHook : CommonHook, IHookModule
 {
     private const string TYPE = "AssetRipper.IO.Files.BundleFiles.FileStream.BundleFileBlockReader, AssetRipper.IO.Files";
 
     private static readonly MethodInfo CreateStream = Type.GetType(TYPE).GetMethod("CreateStream", ReflectionExtensions.PrivateStaticBindFlag());
     private static readonly MethodInfo CreateTemporaryStream = Type.GetType(TYPE).GetMethod("CreateTemporaryStream", ReflectionExtensions.PrivateStaticBindFlag());
+    
     public delegate void BlockCompressionDelegate(FileStreamNode entry, Stream mStream, StorageBlock block, SmartStream cachedBlockStream, CompressionType compressType, int m_cachedBlockIndex);
 
-    /// <summary>
-    /// 针对StorageBlock压缩加密的回调 解决解压错误不支持的类型 5 这种错误的自定义解压处理
-    /// </summary>
+    // Static callback used by the hooked method
     public static BlockCompressionDelegate CustomBlockCompression;
+    
+    private readonly BlockCompressionDelegate _moduleCallback;
+
+    public BundleFileBlockReaderHook(BlockCompressionDelegate callback)
+    {
+        _moduleCallback = callback;
+    }
+
+    public void OnApply()
+    {
+        CustomBlockCompression = _moduleCallback;
+    }
 
     [RetargetMethod(TYPE, nameof(ReadEntry))]
     public SmartStream ReadEntry(FileStreamNode entry)
     {
+        // Implementation remains same, calling CustomBlockCompression
         var type = Type.GetType(TYPE);
         var m_blocksInfo = (BlocksInfo)GetPrivateField(type, "m_blocksInfo");
         var m_dataOffset = (long)GetPrivateField(type, "m_dataOffset");
@@ -60,8 +73,6 @@ public class BundleFileBlockReaderHook : CommonHook
             StorageBlock block = m_blocksInfo.StorageBlocks[blockIndex];
             if (m_cachedBlockIndex == blockIndex)
             {
-                // data of the previous entry is in the same block as this one
-                // so we don't need to unpack it once again. Instead we can use cached stream
                 blockStreamOffset = 0;
                 blockStream = m_cachedBlockStream;
                 rentedArray = null;
@@ -84,17 +95,13 @@ public class BundleFileBlockReaderHook : CommonHook
                     m_cachedBlockStream.Move((SmartStream)CreateTemporaryStream.Invoke(this, parameters));
                     rentedArray = (byte[]?)parameters[1];
 
-                    // 回调自定义处理
+                    // Callback
                     CustomBlockCompression(entry, m_stream, block, m_cachedBlockStream, compressType, m_cachedBlockIndex);
 
                     blockStream = m_cachedBlockStream;
                 }
             }
 
-            // consider next offsets:
-            // 1) block - if it is new stream then offset is 0, otherwise offset of this block in the bundle file
-            // 2) entry - if this is first block for current entry then it is offset of this entry related to this block
-            //			  otherwise 0
             long blockSize = block.UncompressedSize - entryOffsetInsideBlock;
             blockStream.Position = blockStreamOffset + entryOffsetInsideBlock;
             entryOffsetInsideBlock = 0;

@@ -1,7 +1,7 @@
 ﻿using AssetRipper.Export.Configuration;
 using AssetRipper.Processing;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_StaticMeshSeparation_Hook
 {

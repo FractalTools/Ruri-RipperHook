@@ -3,7 +3,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using AssetRipper.SourceGenerated.Subclasses.VertexData;
 
-namespace Ruri.RipperHook.EndField_0_5_27;
+namespace Ruri.RipperHook.Endfield;
 
 public partial class EndField_0_5_27_Hook
 {

@@ -5,7 +5,7 @@ using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
 using K4os.Compression.LZ4;
 
-namespace Ruri.RipperHook.UnityChinaCommon;
+namespace Ruri.RipperHook.UnityChina;
 
 public partial class UnityChinaCommon_Hook
 {

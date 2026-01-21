@@ -2,7 +2,7 @@
 using AssetRipper.SourceGenerated.Subclasses.MinMaxCurve;
 using AssetRipper.SourceGenerated.Subclasses.VelocityModule;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

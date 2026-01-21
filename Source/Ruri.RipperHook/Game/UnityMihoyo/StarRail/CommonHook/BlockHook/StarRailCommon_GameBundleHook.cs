@@ -5,7 +5,7 @@ using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.StarRailCommon;
+namespace Ruri.RipperHook.StarRail;
 
 public partial class StarRailCommon_Hook
 {

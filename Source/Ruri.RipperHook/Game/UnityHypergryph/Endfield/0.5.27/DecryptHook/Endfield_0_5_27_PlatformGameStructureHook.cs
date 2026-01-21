@@ -2,7 +2,7 @@ using AssetRipper.IO.Endian;
 using Ruri.RipperHook.Crypto;
 using System.Reflection;
 
-namespace Ruri.RipperHook.EndField_0_5_27;
+namespace Ruri.RipperHook.Endfield;
 
 public partial class EndField_0_5_27_Hook
 {

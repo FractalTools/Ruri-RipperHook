@@ -1,7 +1,7 @@
 ﻿using AssetRipper.SourceGenerated.Enums;
 using System.Collections;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation;
+namespace Ruri.RipperHook.AR;
 
 public readonly struct TriangleEnumerable : IEnumerable<(uint, uint, uint)>
 {

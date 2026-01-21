@@ -4,7 +4,7 @@ using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.ExAstrisCommon;
+namespace Ruri.RipperHook.ExAstris;
 
 public partial class ExAstrisCommon_Hook
 {

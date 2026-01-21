@@ -3,7 +3,7 @@ using AssetRipper.SourceGenerated.Subclasses.EmissionModule;
 using AssetRipper.SourceGenerated.Subclasses.ParticleSystemEmissionBurst;
 using AssetRipper.SourceGenerated.Subclasses.Vector4f;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

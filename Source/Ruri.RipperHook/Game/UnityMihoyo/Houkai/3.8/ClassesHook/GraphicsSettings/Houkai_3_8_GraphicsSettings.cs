@@ -3,7 +3,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_30;
 using AssetRipper.SourceGenerated.Subclasses.BuiltinShaderSettings;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_Shader;
 
-namespace Ruri.RipperHook.Houkai_3_8;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_3_8_Hook
 {

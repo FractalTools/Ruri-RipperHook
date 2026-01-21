@@ -3,7 +3,7 @@ using AssetRipper.IO.Endian;
 using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated.Subclasses.DenseClip;
 
-namespace Ruri.RipperHook.ExAstrisCommon;
+namespace Ruri.RipperHook.ExAstris;
 
 public partial class ExAstrisCommon_Hook
 {

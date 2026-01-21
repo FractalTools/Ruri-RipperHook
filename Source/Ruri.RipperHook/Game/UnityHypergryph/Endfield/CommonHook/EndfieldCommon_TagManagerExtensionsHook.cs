@@ -1,7 +1,7 @@
 using AssetRipper.SourceGenerated.Classes.ClassID_78;
 using AssetRipper.SourceGenerated.Extensions;
 
-namespace Ruri.RipperHook.EndFieldCommon;
+namespace Ruri.RipperHook.Endfield;
 
 public partial class EndFieldCommon_Hook : RipperHook
 {

@@ -1,7 +1,7 @@
 ﻿using AssetRipper.IO.Endian;
 using AssetRipper.SourceGenerated.Classes.ClassID_20;
 
-namespace Ruri.RipperHook.Houkai_3_8;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_3_8_Hook
 {

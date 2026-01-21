@@ -4,7 +4,7 @@ using AssetRipper.Processing.AnimationClips;
 using AssetRipper.SourceGenerated.Classes.ClassID_74;
 using System.IO;
 
-namespace Ruri.RipperHook.AR_SkipProcessingAnimation;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_SkipProcessingAnimation_Hook
 {

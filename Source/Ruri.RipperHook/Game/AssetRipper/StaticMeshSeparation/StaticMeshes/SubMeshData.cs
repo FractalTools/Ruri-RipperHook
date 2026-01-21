@@ -2,7 +2,7 @@
 using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation;
+namespace Ruri.RipperHook.AR;
 
 /// <summary>
 /// 

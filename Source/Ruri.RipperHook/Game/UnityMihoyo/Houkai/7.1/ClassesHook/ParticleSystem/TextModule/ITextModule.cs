@@ -4,7 +4,7 @@ using AssetRipper.IO.Endian;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_Camera;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_GameObject;
 
-namespace Ruri.RipperHook.Houkai_7_1.Classes.Subclasses.TextModule;
+namespace Ruri.RipperHook.Houkai.Classes.Subclasses.TextModule;
 
 public interface ITextModule : IUnityAssetBase, IEndianSpanReadable, IAssetWritable
 {

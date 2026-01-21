@@ -4,7 +4,7 @@ using AssetRipper.IO.Endian;
 using AssetRipper.SourceGenerated.Subclasses.Clip;
 using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class HoukaiCommon_Hook
 {

@@ -2,7 +2,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_74;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 
-namespace Ruri.RipperHook.HoukaiCommon;
+namespace Ruri.RipperHook.Houkai;
 
 public static class AclHook
 {

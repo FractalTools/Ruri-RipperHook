@@ -1,4 +1,6 @@
-﻿namespace Ruri.RipperHook.GirlsFrontline2Common;
+using Ruri.RipperHook.Attributes;
+﻿namespace Ruri.RipperHook.GirlsFrontline2;
+
 
 public partial class GirlsFrontline2Common_Hook : RipperHook
 {

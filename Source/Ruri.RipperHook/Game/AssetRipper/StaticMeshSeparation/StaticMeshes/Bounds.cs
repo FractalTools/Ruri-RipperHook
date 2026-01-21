@@ -2,7 +2,7 @@
 using AssetRipper.SourceGenerated.Subclasses.AABB;
 using System.Numerics;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation;
+namespace Ruri.RipperHook.AR;
 
 public record struct Bounds(
 	Vector3 Center,

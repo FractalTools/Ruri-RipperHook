@@ -1,6 +1,6 @@
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.GirlsFrontline2Common;
+namespace Ruri.RipperHook.GirlsFrontline2;
 
 public record XorDecryptor : CommonDecryptor
 {

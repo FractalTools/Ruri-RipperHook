@@ -1,10 +1,12 @@
-﻿using Ruri.RipperHook.EndFieldCommon;
+using Ruri.RipperHook.Attributes;
+using Ruri.RipperHook.Endfield;
 using Ruri.RipperHook.Crypto;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 
-namespace Ruri.RipperHook.EndField_0_1;
+namespace Ruri.RipperHook.Endfield;
 
-public partial class EndField_0_1_Hook : RipperHook
+[GameHook("Endfield", "0.1")]
+public partial class EndField_0_1_Hook : EndFieldCommon_Hook
 {
     public static FairGuardDecryptor Decryptor;
 
@@ -15,8 +17,7 @@ public partial class EndField_0_1_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        additionalNamespaces.Add(typeof(EndFieldCommon_Hook).Namespace);
-        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = EndField_0_1_Hook.CustomBlockCompression; });
+RegisterModule(new BundleFileBlockReaderHook(EndField_0_1_Hook.CustomBlockCompression));
         base.InitAttributeHook();
     }
 }

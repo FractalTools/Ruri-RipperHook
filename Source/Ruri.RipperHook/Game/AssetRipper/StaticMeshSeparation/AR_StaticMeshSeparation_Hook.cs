@@ -1,10 +1,12 @@
-﻿using Ruri.RipperHook.HookUtils.ExportHandlerHook;
+using Ruri.RipperHook.Attributes;
+using Ruri.RipperHook.HookUtils.ExportHandlerHook;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation;
+namespace Ruri.RipperHook.AR;
 
 /// <summary>
 /// 静态网格分离 用于修复Static模型分离为单个网格
 /// </summary>
+[GameHook("AR_StaticMeshSeparation")]
 public partial class AR_StaticMeshSeparation_Hook : RipperHook
 {
     protected AR_StaticMeshSeparation_Hook()
@@ -13,7 +15,8 @@ public partial class AR_StaticMeshSeparation_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        AddNameSpaceHook(typeof(ExportHandlerHook).Namespace, () => { ExportHandlerHook.CustomAssetProcessors.Add(StaticMeshProcessor); });
+        RegisterModule(new ExportHandlerHook());
+        ExportHandlerHook.CustomAssetProcessors.Add(StaticMeshProcessor);
         base.InitAttributeHook();
     }
 }

@@ -4,7 +4,7 @@ using AssetRipper.IO.Files.BundleFiles.FileStream;
 using AssetRipper.Primitives;
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.UnityChinaCommon;
+namespace Ruri.RipperHook.UnityChina;
 
 public partial class UnityChinaCommon_Hook
 {

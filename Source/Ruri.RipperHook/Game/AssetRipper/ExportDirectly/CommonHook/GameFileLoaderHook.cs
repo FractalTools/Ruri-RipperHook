@@ -2,7 +2,7 @@
 using AssetRipper.Import.Logging;
 using System.IO;
 
-namespace Ruri.RipperHook.AR_ExportDirectly;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_ExportDirectly_Hook
 {

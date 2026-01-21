@@ -17,10 +17,16 @@ using AssetRipper.Processing.Scenes;
 using AssetRipper.Processing.ScriptableObject;
 using AssetRipper.Processing.Textures;
 
+using Ruri.RipperHook.Core;
+
 namespace Ruri.RipperHook.HookUtils.ExportHandlerHook;
 
-public class ExportHandlerHook : CommonHook
+public class ExportHandlerHook : CommonHook, IHookModule
 {
+    public void OnApply()
+    {
+        Registry.ApplyTypeHooks(GetType());
+    }
     // update: 配置类类型从 LibraryConfiguration 变更为 FullConfiguration
     public delegate IEnumerable<IAssetProcessor> AssetProcessorDelegate(FullConfiguration Settings);
 

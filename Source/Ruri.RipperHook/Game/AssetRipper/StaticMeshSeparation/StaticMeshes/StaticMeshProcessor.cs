@@ -17,7 +17,7 @@ using AssetRipper.SourceGenerated.Subclasses.SubMesh;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-namespace Ruri.RipperHook.AR_StaticMeshSeparation
+namespace Ruri.RipperHook.AR
 {
 	public class StaticMeshProcessor : IAssetProcessor
 	{

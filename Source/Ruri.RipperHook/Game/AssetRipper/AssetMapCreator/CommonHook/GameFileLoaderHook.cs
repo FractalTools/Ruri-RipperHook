@@ -4,7 +4,7 @@ using AssetRipper.Processing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace Ruri.RipperHook.AR_AssetMapCreator;
+namespace Ruri.RipperHook.AR;
 
 public partial class AR_AssetMapCreator_Hook
 {

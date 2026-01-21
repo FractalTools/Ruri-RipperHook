@@ -5,7 +5,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_142;
 using AssetRipper.SourceGenerated.Subclasses.AssetInfo;
 using AssetRipper.SourceGenerated.Subclasses.PPtr_Object;
 
-namespace Ruri.RipperHook.Houkai_7_1;
+namespace Ruri.RipperHook.Houkai;
 
 public partial class Houkai_7_1_Hook
 {

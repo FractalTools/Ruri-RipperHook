@@ -1,14 +1,16 @@
-﻿using AssetRipper.Primitives;
+using Ruri.RipperHook.Attributes;
+using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.HookUtils.PlatformGameStructureHook_IsBundleHeader;
-using Ruri.RipperHook.StarRailCommon;
+using Ruri.RipperHook.StarRail;
 using Ruri.RipperHook.UnityMihoyo;
 
-namespace Ruri.RipperHook.StarRail_2_0;
+namespace Ruri.RipperHook.StarRail;
 
-public partial class StarRail_2_0_Hook : RipperHook
+[GameHook("StarRail", "2.0", "2019.4.34f1")]
+public partial class StarRail_2_0_Hook : StarRailCommon_Hook
 {
     public static UnityVersion StarRailClassVersion = UnityVersion.Parse($"2019.4.200x{(int)CustomEngineType.StarRail}");
     public const string ClassHookVersion = "2019.4.34f1";
@@ -45,10 +47,9 @@ public partial class StarRail_2_0_Hook : RipperHook
 
     protected override void InitAttributeHook()
     {
-        additionalNamespaces.Add(typeof(StarRailCommon_Hook).Namespace);
-        AddNameSpaceHook(typeof(BundleFileBlockReaderHook).Namespace, () => { BundleFileBlockReaderHook.CustomBlockCompression = MihoyoCommon.CustomBlockCompression; });
-        AddNameSpaceHook(typeof(PlatformGameStructureHook_IsBundleHeader).Namespace, () => { PlatformGameStructureHook_IsBundleHeader.CustomAssetBundlesCheckMagicNum = StarRailCommon_Hook.CustomAssetBundlesCheckMagicNum; });
-        AddNameSpaceHook(typeof(GameBundleHook).Namespace, () => { GameBundleHook.CustomFilePreInitialize = StarRailCommon_Hook.CustomFilePreInitialize; });
+RegisterModule(new BundleFileBlockReaderHook(MihoyoCommon.CustomBlockCompression));
+        RegisterModule(new PlatformGameStructureHook_IsBundleHeader(StarRailCommon_Hook.CustomAssetBundlesCheckMagicNum));
+        RegisterModule(new GameBundleHook(StarRailCommon_Hook.CustomFilePreInitialize));
         base.InitAttributeHook();
 
         HookClasses(ClassesToHook, ClassHookVersion, StarRailClassVersion, "Ruri.SourceGenerated");

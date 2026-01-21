@@ -39,7 +39,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-namespace Ruri.RipperHook.AR_ShaderDecompiler;
+namespace Ruri.RipperHook.AR;
 
 public sealed class ShaderDXDecompileExporter : ShaderExporterBase
 {

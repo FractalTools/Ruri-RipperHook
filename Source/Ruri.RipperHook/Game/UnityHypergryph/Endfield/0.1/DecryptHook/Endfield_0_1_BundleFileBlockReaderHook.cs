@@ -4,7 +4,7 @@ using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.Streams.Smart;
 using Ruri.RipperHook.Crypto;
 
-namespace Ruri.RipperHook.EndField_0_1;
+namespace Ruri.RipperHook.Endfield;
 
 public partial class EndField_0_1_Hook
 {
