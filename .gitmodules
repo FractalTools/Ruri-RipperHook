@@ -10,3 +10,6 @@
 [submodule "Source/Ruri.ShaderDecompiler"]
 	path = Source/Ruri.ShaderDecompiler
 	url = https://github.com/ShiyumeMeguri/Ruri.ShaderDecompiler.git
+[submodule "FModel"]
+	path = FModel
+	url = https://github.com/4sval/FModel
