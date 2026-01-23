@@ -7,3 +7,6 @@
 [submodule "USCSandbox"]
 	path = USCSandbox
 	url = https://github.com/nesrak1/USCSandbox
+[submodule "Source/Ruri.ShaderDecompiler"]
+	path = Source/Ruri.ShaderDecompiler
+	url = https://github.com/ShiyumeMeguri/Ruri.ShaderDecompiler.git
