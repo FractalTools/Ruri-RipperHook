@@ -9,36 +9,19 @@ using FModel.Settings;
 using CUE4Parse.FileProvider.Objects;
 using Serilog;
 using Ruri.FModelHook.Game.SBUE.ShaderDecompiler;
+using Ruri.Hook.Core;
 
 namespace Ruri.FModelHook.Game.SBUE.ShaderDecompiler
 {
     [GameHook("UE_ShaderDecompiler")]
     public class UE_ShaderDecompiler_Hook : RuriHook
     {
-        // Use RetargetMethodFunc to allow C# logic injection with IL control flow
-        [RetargetMethodFunc(typeof(CUE4ParseViewModel), "ExportData")]
-        public static bool ExportData_Hook(ILContext il)
+        // Use RetargetMethod to safely inject C# logic before the original method and fall through (IsReturn = false)
+        // Positional args: Type source, string methodName, bool isBefore, bool isReturn
+        [RetargetMethod(typeof(CUE4ParseViewModel), "ExportData", true, false)]
+        public static void ExportData_Hook(CUE4ParseViewModel self, GameFile entry, bool updateUi)
         {
-            var cursor = new ILCursor(il);
-            
-            var labelContinue = cursor.DefineLabel();
-
-            cursor.Emit(Mono.Cecil.Cil.OpCodes.Ldarg_1); 
-            
-            cursor.EmitDelegate<Func<GameFile, bool>>(TryExportShaderLibrary);
-            
-            cursor.Emit(Mono.Cecil.Cil.OpCodes.Brfalse, labelContinue);
-            
-            cursor.Emit(Mono.Cecil.Cil.OpCodes.Ret);
-            
-            cursor.MarkLabel(labelContinue);
-
-            return true;
-        }
-
-        public static bool TryExportShaderLibrary(GameFile entry)
-        {
-            if (entry == null) return false;
+            if (entry == null) return;
 
             if (entry.Extension.Equals("ushaderbytecode", StringComparison.OrdinalIgnoreCase))
             {
@@ -51,15 +34,17 @@ namespace Ruri.FModelHook.Game.SBUE.ShaderDecompiler
                         Directory.CreateDirectory(Path.GetDirectoryName(p));
                         File.WriteAllBytes(p, libraryBytes);
                         
-                        return true;
+                        File.WriteAllBytes(p, libraryBytes);
+                        
+                        // Log success via standard logger if desired, or silent
+                        HookLogger.LogSuccess($"[+] Exported ShaderLibrary: {p}");
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    HookLogger.LogFailure($"Failed to export ShaderLibrary for {entry.Name}: {ex.Message}");
                 }
             }
-
-            return false;
         }
     }
 }
