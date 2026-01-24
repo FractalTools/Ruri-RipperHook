@@ -205,9 +205,31 @@ namespace Ruri.Hook.Core
                         }
                      }
 
-                     MethodInfo? methodSrc = attr.MethodParameters == null 
-                        ? attr.SourceType.GetMethod(methodName, bindingFlags)
-                        : attr.SourceType.GetMethod(methodName, bindingFlags, attr.MethodParameters);
+                     MethodInfo? methodSrc = null;
+
+                     // 1. Try exact parameter match (if params provided)
+                     if (attr.MethodParameters != null)
+                     {
+                        methodSrc = attr.SourceType.GetMethod(methodName, bindingFlags, attr.MethodParameters);
+                     }
+                     // 2. Try exact name match (without params or if attr.Parameters was null)
+                     if (methodSrc == null)
+                     {
+                         try 
+                         {
+                            methodSrc = attr.SourceType.GetMethod(methodName, bindingFlags);
+                         } 
+                         catch (AmbiguousMatchException) { }
+                     }
+
+                     // 3. Fallback: LINQ search by name (first match)
+                     if (methodSrc == null)
+                     {
+                         methodSrc = attr.SourceType.GetMethods(bindingFlags).FirstOrDefault(m => m.Name == methodName);
+                     }
+
+                     if (methodSrc == null)
+                         throw new Exception($"[HookRegistry] Could not find source method {attr.SourceType.Name}.{methodName}");
 
                      var hookCallback = (Func<ILContext, bool>)Delegate.CreateDelegate(typeof(Func<ILContext, bool>), methodDest);
                      ReflectionExtensions.RetargetCallFunc(hookCallback, methodSrc);
@@ -226,6 +248,9 @@ namespace Ruri.Hook.Core
                      ConstructorInfo? methodSrc = attr.MethodParameters == null 
                         ? attr.SourceType.GetConstructor(Type.EmptyTypes)
                         : attr.SourceType.GetConstructor(bindingFlags, attr.MethodParameters);
+
+                     if (methodSrc == null)
+                         throw new Exception($"[HookRegistry] Could not find source constructor {attr.SourceType.Name}");
 
                      var hookCallback = (Func<ILContext, bool>)Delegate.CreateDelegate(typeof(Func<ILContext, bool>), methodDest);
                      ReflectionExtensions.RetargetCallCtorFunc(hookCallback, methodSrc);
