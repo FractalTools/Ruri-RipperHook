@@ -1,4 +1,4 @@
-namespace Ruri.RipperHook.Core;
+namespace Ruri.Hook.Core;
 
 public interface IHookModule
 {

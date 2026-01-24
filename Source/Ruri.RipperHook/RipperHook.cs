@@ -6,18 +6,18 @@ using AssetRipper.IO.Endian;
 using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using MonoMod.Cil;
-using Ruri.RipperHook.Attributes;
+using Ruri.Hook;
+using Ruri.Hook.Core;
+using Ruri.RipperHook.Attributes; // Explicit import
 using Ruri.RipperHook.Core;
 
 namespace Ruri.RipperHook;
 
-public abstract class RipperHook
+public abstract class RipperHook : RuriHook
 {
     // Re-expose for compatibility
     public delegate void ReadReleaseDelegate(object asset, ref EndianSpanReader reader);
 
-    protected readonly HookRegistry Registry = new();
-    protected List<MethodInfo> methodHooks = new();
     private List<IHookModule> _modules = new();
 
     /// <summary>
@@ -27,15 +27,11 @@ public abstract class RipperHook
 
     protected RipperHook()
     {
-        // Init logic should be called by derived class if needed, or usually it's automatic.
-        // But we want to allow derived classes to RegisterModule BEFORE init.
-        // So we delay ProcessAutoClassHooks?
-        // Original: InitAttributeHook() called in constructor.
     }
     
-    public void Initialize()
+    public override void Initialize()
     {
-        InitAttributeHook();
+        base.Initialize(); // Calls InitAttributeHook
         ProcessAutoClassHooks();
     }
 
@@ -46,22 +42,12 @@ public abstract class RipperHook
         Registry.ApplyTypeHooks(module.GetType());
     }
 
-    protected virtual void InitAttributeHook()
+    protected override void InitAttributeHook()
     {
-        // User Request: Analyze the Game Class methods for attributes (RetargetMethod).
-        // This replaces the old namespace/assembly scanning.
-        Registry.ApplyTypeHooks(GetType());
-        
-        // Also apply any manually added methods (from AddMethodHook)
-        if (methodHooks.Count > 0)
-        {
-             Registry.ApplyManualHooks(methodHooks);
-        }
+        base.InitAttributeHook();
+        // Custom RipperHook logic can go here if needed
     }
 
-    /// <summary>
-    /// Scans for [HookObjectClass] attributes on the current class and registers them.
-    /// </summary>
     /// <summary>
     /// Scans for [HookObjectClass] attributes on the current class and registers them.
     /// </summary>
@@ -71,8 +57,15 @@ public abstract class RipperHook
         var gameHookAttr = type.GetCustomAttribute<GameHookAttribute>();
         if (gameHookAttr == null) return; // Only process if tagged as a GameHook
 
+
+        // TypeTreeHookAttribute is AssetRipper specific
         var hookClassAttrs = type.GetCustomAttributes<TypeTreeHookAttribute>();
-        if (!hookClassAttrs.Any()) return;
+        if (!hookClassAttrs.Any()) 
+        {
+            return;
+        }
+
+        HookLogger.Log($"Found {hookClassAttrs.Count()} TypeTreeHook attributes.");
 
         var classIds = hookClassAttrs.Select(a => a.ClassID).ToList();
         
@@ -125,30 +118,18 @@ public abstract class RipperHook
         {
             // Parse sourceUnityVersion (Base) for lookup
             UnityVersion lookupVersion = UnityVersion.Parse(sourceUnityVersion);
-            Registry.RegisterClassHooks(classIds, lookupVersion, targetVersion, ruriAssembly, generatedAssemblyNamespace, coreCallbacks);
+            // Registry is now from Base (RuriHook). 
+            // RegisterClassHooks WAS REMOVED from generic hook registry.
+            // We need to implement it here or via extension.
+            // Since it heavily relies on Registry internals or AR types, let's implement duplicate/local logic using Registry primitives?
+            // Actually, Registry.RegisterClassHooks logic was AR specific. 
+            // I should have moved that logic TO THIS CLASS or a helper in THIS project.
+            
+            ARHookRegistryHelper.RegisterClassHooks(Registry, classIds, lookupVersion, targetVersion, ruriAssembly, generatedAssemblyNamespace, coreCallbacks);
         }
     }
     
-    protected void AddMethodHook(Type type, string name)
-    {
-        var method = type.GetMethod(name, ReflectionExtensions.AnyBindFlag());
-        if (method != null)
-        {
-            methodHooks.Add(method);
-        }
-    }
-
-    // Legacy Accessors
-    protected void SetPrivateField(Type type, string name, object newValue)
-    {
-        type.GetField(name, ReflectionExtensions.PrivateInstanceBindFlag())?.SetValue(this, newValue);
-    }
-
-    protected object? GetPrivateField(Type type, string name)
-    {
-        return type.GetField(name, ReflectionExtensions.PrivateInstanceBindFlag())?.GetValue(this);
-    }
-    
+    // SetAssetListField is AR specific
     protected void SetAssetListField<T>(Type type, string name, ref EndianSpanReader reader, bool isAlign = true) where T : UnityAssetBase, new()
     {
         var field = type.GetField(name, ReflectionExtensions.PrivateInstanceBindFlag());

@@ -38,6 +38,7 @@
 		<ProjectReference Include="..\..\AssetRipper\Source\AssetRipper.SourceGenerated.Extensions\AssetRipper.SourceGenerated.Extensions.csproj" />
 		<ProjectReference Include="..\..\AssetRipper\Source\AssetRipper.Yaml\AssetRipper.Yaml.csproj" />
 		<ProjectReference Include="..\..\USCSandbox\USCSandbox\USCSandbox.csproj" />
+		<ProjectReference Include="..\Ruri.Hook\Ruri.Hook.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

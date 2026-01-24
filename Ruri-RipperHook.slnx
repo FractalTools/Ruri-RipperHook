@@ -62,6 +62,9 @@
     <File Path="AssetRipper/.github/workflows/publish.yml" />
     <File Path="AssetRipper/.github/workflows/test.yml" />
   </Folder>
+  <Folder Name="/Source/">
+    <Project Path="Source/Ruri.FModelHook/Ruri.FModelHook.csproj" />
+  </Folder>
   <Project Path="AssetRipper/Source/AssetRipper.AssemblyDumper.Downloader/AssetRipper.AssemblyDumper.Downloader.csproj" />
   <Project Path="AssetRipper/Source/AssetRipper.AssemblyDumper.NativeEnumExtractor/AssetRipper.AssemblyDumper.NativeEnumExtractor.csproj" />
   <Project Path="AssetRipper/Source/AssetRipper.AssemblyDumper.NuGetFixer/AssetRipper.AssemblyDumper.NuGetFixer.csproj" />
@@ -118,7 +121,9 @@
   <Project Path="FModel/CUE4Parse/CUE4Parse/CUE4Parse.csproj" />
   <Project Path="FModel/FModel/FModel.csproj" />
   <Project Path="Source/Ruri.AssemblyDumper/Ruri.AssemblyDumper.csproj" />
+  <Project Path="Source/Ruri.Hook/Ruri.Hook.csproj" />
   <Project Path="Source/Ruri.RipperHook/Ruri.RipperHook.csproj" />
+  <Project Path="Source/Ruri.ShaderDecompiler/Ruri.ShaderDecompiler.csproj" />
   <Project Path="Source/Ruri.SourceGenerated/Ruri.SourceGenerated.csproj" />
   <Project Path="USCSandbox/USCSandbox/USCSandbox.csproj" />
 </Solution>

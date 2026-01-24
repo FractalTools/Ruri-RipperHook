@@ -1,4 +1,4 @@
-using Ruri.RipperHook.Attributes;
+
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.UnityChina;
 

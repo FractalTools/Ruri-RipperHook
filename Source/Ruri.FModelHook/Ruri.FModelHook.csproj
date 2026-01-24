@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ruri.Hook\Ruri.Hook.csproj" />
+    <ProjectReference Include="..\..\FModel\FModel\FModel.csproj" />
+    <ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse\CUE4Parse.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.3" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>
