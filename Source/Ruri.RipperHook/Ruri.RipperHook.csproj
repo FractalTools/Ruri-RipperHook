@@ -52,10 +52,4 @@
 			<HintPath>Libraries\Ruri.SourceGenerated.dll</HintPath>
 		</Reference>
 	</ItemGroup>
-
-	<ItemGroup>
-		<None Update="RuriHookConfig.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
 </Project>
