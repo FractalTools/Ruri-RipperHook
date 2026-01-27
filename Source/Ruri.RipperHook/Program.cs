@@ -1,24 +1,33 @@
 ﻿using AssetRipper.GUI.Web;
-using Ruri.RipperHook.Config;
+using Ruri.Hook.Config;
+using Ruri.Hook.Core;
+using System;
+using System.IO;
+using System.Windows.Forms;
 
 namespace Ruri.RipperHook;
 
 internal static class Program
 {
+    private const string ConfigFileName = "RuriRipperHook.json";
+
     [STAThread]
     public static void Main(string[] args)
     {
-        Hook(args);
-        RunAssetRipper(args);
-    }
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
-    private static void Hook(string[] args)
-    {
-        var hooks = RuriHookConfigManager.Load();
-        foreach (var hook in hooks)
-        {
-            RuriRuntimeHook.Init(hook);
-        }
+        var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ConfigFileName);
+        var config = HookConfig.Load(configPath);
+        
+        // Show Configuration UI
+        Application.Run(new Ruri.Hook.UI.HookSelectionForm(config, configPath));
+
+        // Apply selected hooks
+        Ruri.Hook.RuriHook.ApplyHooks(config);
+
+        // Continue with AssetRipper
+        RunAssetRipper(args);
     }
 
     private static void RunAssetRipper(string[] args)

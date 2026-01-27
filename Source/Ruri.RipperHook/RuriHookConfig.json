@@ -6,7 +6,7 @@
     "AR_AssetMapCreator",
     "AR_ShaderDecompiler",
     "AR_SkipStreamingAssets",
-    "EndField_0_8_25"
+    "EndField_0_5_27"
   ],
   "AvailableOptionsReference": [
     "AR_ShaderDecompiler = 0",

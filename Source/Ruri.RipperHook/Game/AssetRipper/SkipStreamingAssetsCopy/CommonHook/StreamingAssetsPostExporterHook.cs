@@ -6,7 +6,7 @@ using AssetRipper.Processing;
 
 namespace Ruri.RipperHook.AR;
 
-public partial class AR_SkipStreamingAssets_Hook
+public partial class AR_SkipStreamingAssetsCopy_Hook
 {
     [RetargetMethod(typeof(StreamingAssetsPostExporter), nameof(StreamingAssetsPostExporter.DoPostExport), isBefore: true, isReturn: true)]
     public void DoPostExport(GameData gameData, FullConfiguration settings, FileSystem fileSystem)
