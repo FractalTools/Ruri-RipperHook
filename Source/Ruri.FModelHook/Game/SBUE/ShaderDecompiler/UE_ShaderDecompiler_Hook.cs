@@ -22,14 +22,12 @@ namespace Ruri.FModelHook.Game.SBUE.ShaderDecompiler
                 var libraryBytes = ShaderArchiveExporter.SaveShaderLibrary(entry);
                 if (libraryBytes != null)
                 {
-                    string p = Path.Combine(UserSettings.Default.RawDataDirectory, UserSettings.Default.KeepDirectoryStructure ? entry.PathWithoutExtension : entry.NameWithoutExtension).Replace('\\', '/') + ".ushaderlib";
-                    Directory.CreateDirectory(Path.GetDirectoryName(p));
-                    File.WriteAllBytes(p, libraryBytes);
-
-                    File.WriteAllBytes(p, libraryBytes);
+                    string path = Path.Combine(UserSettings.Default.RawDataDirectory, UserSettings.Default.KeepDirectoryStructure ? entry.PathWithoutExtension : entry.NameWithoutExtension).Replace('\\', '/') + ".ushaderlib";
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    File.WriteAllBytes(path, libraryBytes);
 
                     // Log success via standard logger if desired, or silent
-                    HookLogger.LogSuccess($"[+] Exported ShaderLibrary: {p}");
+                    HookLogger.LogSuccess($"[+] Exported ShaderLibrary: {path}");
                 }
             }
         }
