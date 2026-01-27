@@ -1,19 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using CUE4Parse.Compression;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.IO;
-using CUE4Parse.UE4.IO.Objects;
 using CUE4Parse.UE4.Objects.Core.Misc;
-using CUE4Parse.UE4.Readers;
 using CUE4Parse.UE4.Shaders;
-using CUE4Parse.UE4.Versions;
-using CUE4Parse.Utils;
 using CUE4Parse.UE4.VirtualFileSystem;
 using FModel.ViewModels;
-using FModel.Settings;
-using System.Reflection;
 
 namespace Ruri.FModelHook.Game.SBUE.ShaderDecompiler
 {
