@@ -185,27 +185,21 @@ namespace Ruri.FModelHook.Game.SBUE.ShaderDecompiler
              // Zstd Check
              if (data.Length >= 4 && data[0] == 0x28 && data[1] == 0xB5 && data[2] == 0x2F && data[3] == 0xFD)
              {
-                 return CUE4Parse.Compression.Compression.Decompress(data, expectedSize, CompressionMethod.Zstd);
-             }
-             
-             try 
-             {
-                 if (OodleHelper.Instance == null)
-                 {
-                     ApplicationViewModel.InitOodle().Wait();
-                 }
-                 if (OodleHelper.Instance != null)
-                 {
-                     var res = new byte[expectedSize];
-                     OodleHelper.Decompress(data, 0, data.Length, res, 0, expectedSize);
-                     return res;
-                 }
-             }
-             catch
-             {
-             }
+                return CUE4Parse.Compression.Compression.Decompress(data, expectedSize, CompressionMethod.Zstd);
+            }
 
-             return data;
+            if (OodleHelper.Instance == null)
+            {
+                ApplicationViewModel.InitOodle().Wait();
+            }
+            if (OodleHelper.Instance != null)
+            {
+                var res = new byte[expectedSize];
+                OodleHelper.Decompress(data, 0, data.Length, res, 0, expectedSize);
+                return res;
+            }
+
+            return data;
         }
 
         private static void WriteShaHashArray(BinaryWriter writer, FSHAHash[] hashes)
