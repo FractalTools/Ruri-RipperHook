@@ -32,7 +32,7 @@ public abstract class RipperHook : RuriHook
     public override void Initialize()
     {
         base.Initialize(); // Calls InitAttributeHook
-        ProcessAutoClassHooks();
+        ProcessGameHooks();
     }
 
     protected void RegisterModule(IHookModule module)
@@ -51,7 +51,7 @@ public abstract class RipperHook : RuriHook
     /// <summary>
     /// Scans for [HookObjectClass] attributes on the current class and registers them.
     /// </summary>
-    protected void ProcessAutoClassHooks()
+    protected void ProcessGameHooks()
     {
         var type = GetType();
         var gameHookAttr = type.GetCustomAttribute<GameHookAttribute>();
@@ -79,12 +79,12 @@ public abstract class RipperHook : RuriHook
         var firstNamespaceOverride = hookClassAttrs.FirstOrDefault(a => a.GeneratedAssemblyNamespace != null);
         if (firstNamespaceOverride != null) generatedNamespace = firstNamespaceOverride.GeneratedAssemblyNamespace!;
 
-        HookClasses(classIds, gameHookAttr.BaseUnityVersion, targetVersionVec, generatedNamespace);
+        HookClasses(classIds, gameHookAttr.BaseEngineVersion, targetVersionVec, generatedNamespace);
     }
 
     protected virtual UnityVersion GetTargetVersion(GameHookAttribute attr)
     {
-        return UnityVersion.Parse(attr.BaseUnityVersion);
+        return UnityVersion.Parse(attr.BaseEngineVersion);
     }
 
     protected void HookClasses(
@@ -107,7 +107,11 @@ public abstract class RipperHook : RuriHook
         Assembly? ruriAssembly = null;
         try
         {
-            ruriAssembly = Assembly.Load(generatedAssemblyNamespace);
+            ruriAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == generatedAssemblyNamespace);
+            if (ruriAssembly == null)
+            {
+                ruriAssembly = Assembly.Load(generatedAssemblyNamespace);
+            }
         }
         catch
         {
@@ -116,16 +120,111 @@ public abstract class RipperHook : RuriHook
 
         if (ruriAssembly != null)
         {
-            // Parse sourceUnityVersion (Base) for lookup
             UnityVersion lookupVersion = UnityVersion.Parse(sourceUnityVersion);
-            // Registry is now from Base (RuriHook). 
-            // RegisterClassHooks WAS REMOVED from generic hook registry.
-            // We need to implement it here or via extension.
-            // Since it heavily relies on Registry internals or AR types, let's implement duplicate/local logic using Registry primitives?
-            // Actually, Registry.RegisterClassHooks logic was AR specific. 
-            // I should have moved that logic TO THIS CLASS or a helper in THIS project.
             
-            ARHookRegistryHelper.RegisterClassHooks(Registry, classIds, lookupVersion, targetVersion, ruriAssembly, generatedAssemblyNamespace, coreCallbacks);
+            var universalDestMethod = typeof(HookDispatcher).GetMethod(nameof(HookDispatcher.Universal_ReadRelease), BindingFlags.Public | BindingFlags.Static);
+            if (universalDestMethod == null) throw new Exception("Universal_ReadRelease missing");
+
+            var originalAssembly = typeof(ClassIDType).Assembly; 
+
+            foreach(var classId in classIds)
+            {
+                try 
+                {
+                   // 1. Resolve AssetRipper Source Type
+                   int id = (int)classId;
+                   string enumName = classId.ToString();
+                   string baseNamespace = $"AssetRipper.SourceGenerated.Classes.ClassID_{id}";
+                   
+                   // Try standard name
+                   string factoryTypeName = $"{baseNamespace}.{enumName}";
+                   Type? factoryType = originalAssembly.GetType(factoryTypeName);
+
+                   // Try removing suffix if not found
+                   if (factoryType == null)
+                   {
+                       string suffix = $"_{id}";
+                       if (enumName.EndsWith(suffix))
+                       {
+                           string cleanName = enumName.Substring(0, enumName.Length - suffix.Length);
+                           string cleanTypeName = $"{baseNamespace}.{cleanName}";
+                           factoryType = originalAssembly.GetType(cleanTypeName);
+                       }
+                   }
+
+                   if (factoryType == null)
+                       throw new InvalidOperationException($"[RipperHook] Could not find factory type for {classId}");
+
+                   var mi = factoryType.GetMethod("Create", new[] { typeof(AssetInfo), typeof(UnityVersion) });
+                   if (mi == null)
+                       throw new InvalidOperationException($"[RipperHook] Create method missing on {factoryType.FullName}");
+
+                   // Invoke Create(null, lookupVersion) to get an instance, then get its type.
+                   object instance = mi.Invoke(null, new object[] { null, lookupVersion });
+                   Type sourceType = instance.GetType();
+                   string sourceTypeName = sourceType.FullName!;
+
+                   // 2. Resolve Ruri Target Type & Hooks
+                   string ruriBaseNamespace = $"{generatedAssemblyNamespace}.Classes.ClassID_{id}";
+                   string ruriTypeName = $"{ruriBaseNamespace}.{enumName}";
+                   
+                   Type? ruriType = ruriAssembly.GetType(ruriTypeName);
+                   if (ruriType == null && enumName.EndsWith($"_{id}"))
+                   {
+                        string cleanName = enumName.Substring(0, enumName.Length - $"_{id}".Length);
+                        ruriType = ruriAssembly.GetType($"{ruriBaseNamespace}.{cleanName}");
+                   }
+
+                   HookDispatcher.ReadReleaseDelegate? callback = null;
+                   if (coreCallbacks != null && coreCallbacks.TryGetValue(classId, out var customAction))
+                   {
+                       callback = customAction;
+                   }
+
+                   if (ruriType == null && callback == null)
+                   {
+                       continue; 
+                   }
+
+                   MethodInfo? createMethod = ruriType?.GetMethod("Create", BindingFlags.Public | BindingFlags.Static, null, new Type[] { typeof(AssetInfo), typeof(UnityVersion) }, null);
+                   if (ruriType != null && createMethod == null)
+                   {
+                        HookLogger.LogFailure($"[-] Failed {classId}: Missing 'Create' method on {ruriType.Name}");
+                        continue;
+                   }
+
+                   if (createMethod == null && callback == null) 
+                   {
+                       HookLogger.LogFailure($"[-] Failed {classId}: No callback or Create method");
+                       continue;
+                   }
+
+                   HookDispatcher.Register(sourceType, createMethod, targetVersion, callback);
+                   
+                   var readReleaseMethod = sourceType.GetMethod("ReadRelease", BindingFlags.Public | BindingFlags.Instance);
+                   if (readReleaseMethod != null)
+                   {
+                       ReflectionExtensions.RetargetCall(readReleaseMethod, universalDestMethod, 1, true, true);
+                       
+                       string targetName = "Unknown";
+                       if (createMethod != null)
+                       {
+                           object targetInstance = createMethod.Invoke(null, new object[] { null, targetVersion });
+                           targetName = targetInstance.GetType().Name;
+                       }
+
+                       HookLogger.LogSuccess($"[+] {sourceType.Name} -> {targetName}");
+                   }
+                   else
+                   {
+                       HookLogger.LogSuccess($"[+] {sourceType.Name} (Dispatch Only)"); 
+                   }
+                }
+                catch (Exception ex)
+                {
+                   HookLogger.LogFailure($"[-] Failed {classId}: {ex.Message}");
+                }
+            }
         }
     }
     

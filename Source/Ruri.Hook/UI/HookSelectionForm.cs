@@ -91,9 +91,9 @@ public class HookSelectionForm : Form
             {
                 displayName += $" {attr.Version}";
             }
-            if (!string.IsNullOrEmpty(attr.BaseUnityVersion)) 
+            if (!string.IsNullOrEmpty(attr.BaseEngineVersion)) 
             {
-               displayName += $" [{attr.BaseUnityVersion}]"; 
+               displayName += $" [{attr.BaseEngineVersion}]"; 
             }
             
             // Use GameName_Version as ID

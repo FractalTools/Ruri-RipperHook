@@ -1,8 +1,5 @@
-using Ruri.RipperHook.Attributes;
 using AssetRipper.Primitives;
-using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.Crypto;
-using Ruri.RipperHook.Endfield;
 using Ruri.RipperHook.HookUtils.BundleFileBlockReaderHook;
 using Ruri.RipperHook.HookUtils.GameBundleHook;
 using Ruri.RipperHook.HookUtils.PlatformGameStructureHook_CollectAssetBundles;
@@ -13,8 +10,8 @@ namespace Ruri.RipperHook.Endfield;
 [GameHook("EndField", "0.8.25", "2021.3.34f1")]
 public partial class EndField_0_8_25_Hook : EndFieldCommon_Hook
 {
-    public static UnityVersion EndFieldClassVersion = UnityVersion.Parse($"2021.3.825x{(int)CustomEngineType.EndField}");
-    public const string ClassHookVersion = "2021.3.34f1";
+    public static string customVersion = $"2021.3.825x{(int)CustomEngineType.EndField}";
+    public static UnityVersion endFieldClassVersion = UnityVersion.Parse(customVersion);
     private static VFSDecryptor vfsDecryptor;
 
     protected EndField_0_8_25_Hook()
@@ -24,7 +21,7 @@ public partial class EndField_0_8_25_Hook : EndFieldCommon_Hook
 
     protected override UnityVersion GetTargetVersion(GameHookAttribute attr)
     {
-        return EndFieldClassVersion;
+        return endFieldClassVersion;
     }
 
     protected override void InitAttributeHook()

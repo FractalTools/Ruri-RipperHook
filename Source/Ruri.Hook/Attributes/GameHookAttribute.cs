@@ -7,13 +7,13 @@ namespace Ruri.Hook.Attributes
     {
         public string GameName { get; }
         public string Version { get; }
-        public string BaseUnityVersion { get; }
+        public string BaseEngineVersion { get; }
 
-        public GameHookAttribute(string gameName, string version = "", string baseUnityVersion = "")
+        public GameHookAttribute(string gameName, string version = "", string baseEngineVersion = "")
         {
             GameName = gameName;
             Version = version;
-            BaseUnityVersion = baseUnityVersion;
+            BaseEngineVersion = baseEngineVersion;
         }
     }
 }
