@@ -9,7 +9,7 @@ namespace Ruri.Hook.UI;
 
 public class HookSelectionForm : Form
 {
-    private CheckedListBox _clbHooks;
+    private FlowLayoutPanel _panelHooks;
     private Button _btnSaveAndLaunch;
     private Button _btnCancel;
     private readonly HookConfig _config;
@@ -40,11 +40,14 @@ public class HookSelectionForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 90));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 10));
 
-        _clbHooks = new CheckedListBox
+        _panelHooks = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            CheckOnClick = true,
-            Font = new Font("Consolas", 10)
+            AutoScroll = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle
         };
 
         var buttonPanel = new FlowLayoutPanel
@@ -58,7 +61,6 @@ public class HookSelectionForm : Form
         {
             Text = "Save & Launch",
             AutoSize = true,
-            Padding = new Padding(10, 5, 10, 5)
         };
         _btnSaveAndLaunch.Click += (s, e) => SaveAndClose();
 
@@ -66,14 +68,13 @@ public class HookSelectionForm : Form
         {
             Text = "Cancel",
             AutoSize = true,
-            Padding = new Padding(10, 5, 10, 5)
         };
         _btnCancel.Click += (s, e) => Application.Exit();
 
         buttonPanel.Controls.Add(_btnSaveAndLaunch);
         buttonPanel.Controls.Add(_btnCancel);
 
-        layout.Controls.Add(_clbHooks, 0, 0);
+        layout.Controls.Add(_panelHooks, 0, 0);
         layout.Controls.Add(buttonPanel, 0, 1);
 
         Controls.Add(layout);
@@ -99,7 +100,16 @@ public class HookSelectionForm : Form
             // Use GameName_Version as ID
             var id = $"{attr.GameName}_{attr.Version}";
             
-            _clbHooks.Items.Add(new HookItem(displayName, id), enabledHooks.Contains(id));
+            var checkBox = new CheckBox
+            {
+                Text = displayName,
+                Tag = id,
+                Checked = enabledHooks.Contains(id),
+                AutoSize = true,
+                Font = new Font("Consolas", 10)
+            };
+            
+            _panelHooks.Controls.Add(checkBox);
         }
     }
 
@@ -107,26 +117,15 @@ public class HookSelectionForm : Form
     {
         _config.EnabledHooks.Clear();
         
-        foreach (HookItem item in _clbHooks.CheckedItems)
+        foreach (CheckBox item in _panelHooks.Controls.OfType<CheckBox>())
         {
-            _config.EnabledHooks.Add(item.Id);
+            if (item.Checked)
+            {
+                _config.EnabledHooks.Add(item.Tag.ToString());
+            }
         }
 
         _config.Save(_configPath);
         Close();
-    }
-
-    private class HookItem
-    {
-        public string DisplayName { get; }
-        public string Id { get; }
-
-        public HookItem(string displayName, string id)
-        {
-            DisplayName = displayName;
-            Id = id;
-        }
-
-        public override string ToString() => DisplayName;
     }
 }
