@@ -165,7 +165,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             AllowMultipleArgumentsPerToken = true,
         };
         ExportGlb = new Option<string?>("--export-glb", "Write each loaded prefab hierarchy as a complete .glb into this directory (skeleton/materials/morphs/animations; humanoid muscles baked). --names filters prefabs. Directory is never deleted.");
-        ExportScene = new Option<string?>("--export-scene", "Export one VFS streaming map (e.g. base01_lv002): placements → best-LOD → CAB closure → Unity-project export + ruri_scene_placements.json manifest. Needs --load <gameRoot> --cab-map --export and a VFS-game --hook.");
+        ExportScene = new Option<string?>("--export-scene", "Export one VFS scene or streaming map (e.g. indie_dg005, base01_lv002): placements → best-LOD → CAB closure → Unity-project export, plus Assets/Scenes/<map>.unity placing every one of them (meshes referenced, prefabs instantiated) and a ruri_scene_placements.json manifest. Needs --load <gameRoot> --cab-map --export and a VFS-game --hook.");
         SceneLandmarkOption = new Option<string?>("--scene-landmark", "With --export-scene, export only one named place of the map, at the size the game gives it: <levelId>[,<scale>[,<sceneStateId>...]], e.g. map01_lv007 or map01_lv007,1.5,0. Omit for the whole map.");
         SceneWindowOption = new Option<string?>("--scene-window", "The same window as a world rect instead of a place name: <minX>,<minZ>,<maxX>,<maxZ>[,<sceneStateId>...].");
         NoScriptsOption = new Option<bool>("--no-scripts", "Do not load scripts at all (AssetRipper ScriptContentLevel.Level0). An IL2Cpp game recovers tens of thousands of MonoScripts nothing downstream reads.");

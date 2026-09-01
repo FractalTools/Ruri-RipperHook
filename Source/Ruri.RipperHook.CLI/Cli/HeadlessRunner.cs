@@ -175,7 +175,11 @@ internal static class HeadlessRunner
         }
 
         Regex[] exportNameFilter = mapSelects || scenePlacements is not null ? [] : options.Names;
-        ExportFilter.Configure(allowedClassIds, exportNameFilter, options.SmokeTestLimit, options.FailFast);
+        // A scene write needs to know what each asset BECAME -- its own name and the
+        // {fileID, guid} pointing at it -- and the only place that is knowable is while the
+        // exporter still holds the live object, since the file names it leaves are lossy.
+        ExportFilter.Configure(allowedClassIds, exportNameFilter, options.SmokeTestLimit, options.FailFast,
+            capture: scenePlacements is not null);
         ExportFilter.Install();
 
         try
@@ -283,6 +287,11 @@ internal static class HeadlessRunner
             if (scenePlacements is not null)
             {
                 SceneSeedResolver.WriteManifest(options.ExportPath, options.ExportSceneMap!, scenePlacements);
+                if (ExportFilter.Captured is { } captured)
+                {
+                    SceneSeedResolver.WriteScene(options.ExportPath, options.ExportSceneMap!, scenePlacements,
+                        captured, ExportFilter.CapturedPrefabs);
+                }
             }
 
             int matchedConsidered = ExportFilter.Considered;

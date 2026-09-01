@@ -1,5 +1,10 @@
 using System.Globalization;
+using System.Text;
+using AssetRipper.Export.UnityProjects;
+using AssetRipper.IO.Files;
+using AssetRipper.Primitives;
 using Newtonsoft.Json;
+using Ruri.RipperHook.Bridge;
 using Ruri.RipperHook.CabMapping;
 using Ruri.RipperHook.Data;
 using Ruri.RipperHook.Tables;
@@ -78,11 +83,14 @@ internal static class SceneSeedResolver
                 $"--scene-landmark '{levelId}' is not a place the game's own map UI lists. " +
                 $"It lists: {string.Join(", ", known)}");
         }
+        // Both tails are optional -- "map02_lv002" alone means the place at the size the game
+        // gives it, in every scene state it ships. Slicing past the end of a shorter spec threw,
+        // so the plain form (the one the help text leads with) never worked at all.
         double scale = fields.Length > 1 ? Number(fields[1], spec) : 1.0;
         SceneWindow window = new(
             Real(places, "minX")[row], Real(places, "minZ")[row],
             Real(places, "maxX")[row], Real(places, "maxZ")[row],
-            Integers(fields[2..], spec));
+            fields.Length > 2 ? Integers(fields[2..], spec) : []);
         return scale == 1.0 ? window : window.Scaled(scale);
     }
 
@@ -141,7 +149,11 @@ internal static class SceneSeedResolver
             "minZ", window.MinZ.ToString(CultureInfo.InvariantCulture),
             "maxX", window.MaxX.ToString(CultureInfo.InvariantCulture),
             "maxZ", window.MaxZ.ToString(CultureInfo.InvariantCulture),
-            "lod0Only", "1",
+            // Which detail level to keep, the same word the dataset itself takes: 0 is the
+            // highest the game authored. This used to say "lod0Only 1", a flag the dataset
+            // stopped taking when it grew a level SELECTOR -- and since an unknown argument
+            // is a hard error, every --export-scene run had been failing at resolve.
+            "detailLevel", "0",
         ];
         foreach (int sceneState in window.SceneStateIds)
         {
@@ -181,6 +193,7 @@ internal static class SceneSeedResolver
 
         int total = (int)Real(counts, "total")[0];
         int noTransform = (int)Real(counts, "noTransform")[0];
+        int lodFiltered = (int)Real(counts, "lodFiltered")[0];
         ColumnTable seedPaths = Read(SeedPathsDataset, [.. args]);
         Utf8Column seedPath = Text(seedPaths, "path");
         string[] allPaths = new string[seedPaths.RowCount];
@@ -192,7 +205,8 @@ internal static class SceneSeedResolver
         Console.Error.WriteLine(
             $"[Ruri.CLI] scene '{mapName}' window x[{window.MinX}..{window.MaxX}] z[{window.MinZ}..{window.MaxZ}] " +
             $"states=[{(window.SceneStateIds.Length == 0 ? "all" : string.Join(' ', window.SceneStateIds))}]: " +
-            $"{total} placements → {total - noTransform} with transform+asset → {rows.Count} after best-LOD selection");
+            $"{total} placements → {total - noTransform} with transform+asset → {rows.Count} kept " +
+            $"({noTransform} never geometry, {lodFiltered} a lower detail level of something already kept)");
 
         string[] seedCabs = CabMap.ResolveCabsForPaths(table, allPaths);
 
@@ -226,4 +240,141 @@ internal static class SceneSeedResolver
         Console.Error.WriteLine($"[Ruri.CLI] scene manifest: {placements.Count} placements → {manifestPath}");
     }
 
+    private const int MeshClassId = 43;
+    private const int MaterialClassId = 21;
+
+    internal sealed record SceneWriteResult(string ScenePath, int Placed, int Instantiated,
+        int Unresolved, IReadOnlyList<string> UnresolvedPaths, IReadOnlyList<string> UnresolvedMaterials);
+
+    /// <summary>
+    /// Write the window's arrangement as a scene Unity can open, beside the assets it places.
+    ///
+    /// <para>The join from a placement to what the export made of it comes from
+    /// <paramref name="index"/> — recorded off the live objects as they were serialized. It
+    /// deliberately does NOT come from the files on disk: export file names are sanitized,
+    /// de-suffixed and uniquified, so a name like "S_tree_hongshan_hardwood+1_001_02" cannot
+    /// be recovered from the file that holds it.</para>
+    /// </summary>
+    internal static SceneWriteResult? WriteScene(string exportPath, string mapName,
+        List<Placement> placements, ExportedAssetIndex index,
+        IReadOnlyDictionary<string, ExportFilter.PrefabExport> prefabs)
+    {
+        string assetsRoot = Path.Combine(exportPath, "ExportedProject", "Assets");
+        if (!Directory.Exists(assetsRoot))
+        {
+            Console.Error.WriteLine(
+                $"[Ruri.CLI] scene: no exported Assets tree under '{exportPath}' — nothing to write a scene against.");
+            return null;
+        }
+
+        SceneDocument scene = new(mapName);
+        Dictionary<string, long> groups = new(StringComparer.Ordinal);
+        List<string> unresolved = new();
+        HashSet<string> unresolvedSeen = new(StringComparer.Ordinal);
+        List<string> unresolvedMaterials = new();
+        HashSet<string> unresolvedMaterialsSeen = new(StringComparer.Ordinal);
+        int placed = 0;
+        int instantiated = 0;
+
+        foreach (Placement placement in placements)
+        {
+            SceneDocument.Vec3 position = new(placement.Px, placement.Py, placement.Pz);
+            SceneDocument.Quat rotation = new(placement.Qx, placement.Qy, placement.Qz, placement.Qw);
+            SceneDocument.Vec3 scale = new(placement.Sx, placement.Sy, placement.Sz);
+
+            // A prefab is instantiated whole; anything else is a mesh this scene references.
+            if (prefabs.TryGetValue(ExportedAssetIndex.Normalize(placement.AssetPath),
+                    out ExportFilter.PrefabExport? prefab))
+            {
+                scene.AddPrefabInstance(prefab.RootName, Group(scene, groups, placement.AssetPath, prefab.RootName),
+                    position, rotation, scale, prefab.SourcePrefab, prefab.RootTransform);
+                instantiated++;
+                continue;
+            }
+
+            ExportedAssetIndex.Entry? resolved = index.Resolve(placement.AssetPath, MeshClassId);
+            if (resolved is not ExportedAssetIndex.Entry mesh)
+            {
+                if (unresolvedSeen.Add(placement.AssetPath))
+                {
+                    unresolved.Add(placement.AssetPath);
+                }
+                continue;
+            }
+
+            List<MetaPtr> materials = new(placement.MaterialAssetPaths.Length);
+            foreach (string materialPath in placement.MaterialAssetPaths)
+            {
+                if (index.Resolve(materialPath, MaterialClassId) is ExportedAssetIndex.Entry material)
+                {
+                    materials.Add(Pointer(material));
+                }
+                else if (unresolvedMaterialsSeen.Add(materialPath))
+                {
+                    unresolvedMaterials.Add(materialPath);
+                }
+            }
+
+            scene.AddMeshObject(mesh.Name, Group(scene, groups, placement.AssetPath, mesh.Name),
+                position, rotation, scale, Pointer(mesh), materials);
+            placed++;
+        }
+
+        string sceneDirectory = Path.Combine(assetsRoot, "Scenes");
+        Directory.CreateDirectory(sceneDirectory);
+        string scenePath = Path.Combine(sceneDirectory, mapName + ".unity");
+        File.WriteAllText(scenePath, scene.Build(), new UTF8Encoding(false));
+        File.WriteAllText(scenePath + ".meta", SceneMeta(mapName), new UTF8Encoding(false));
+
+        Console.Error.WriteLine(
+            $"[Ruri.CLI] scene '{mapName}': {placed} mesh placement(s) + {instantiated} prefab instance(s) "
+            + $"in {groups.Count} group(s) → {scenePath}");
+        if (unresolved.Count > 0)
+        {
+            // Lost content, not a detail: these placements are simply absent from the scene.
+            Console.Error.WriteLine(
+                $"[Ruri.CLI] scene '{mapName}': !! {unresolved.Count} asset path(s) resolved to nothing exported "
+                + $"and are MISSING from the scene: {string.Join(", ", unresolved.Take(5))}"
+                + (unresolved.Count > 5 ? ", …" : string.Empty));
+        }
+        if (unresolvedMaterials.Count > 0)
+        {
+            Console.Error.WriteLine(
+                $"[Ruri.CLI] scene '{mapName}': {unresolvedMaterials.Count} material path(s) resolved to nothing "
+                + $"— those renderer slots are EMPTY: {string.Join(", ", unresolvedMaterials.Take(5))}"
+                + (unresolvedMaterials.Count > 5 ? ", …" : string.Empty));
+        }
+        return new SceneWriteResult(scenePath, placed, instantiated, unresolved.Count, unresolved, unresolvedMaterials);
+    }
+
+    /// <summary>
+    /// One empty parent per distinct asset. A window is 10^4 placements of a few hundred
+    /// things; hung flat off the root, the hierarchy is unusable, and this is the same
+    /// grouping the Blender side files an import under.
+    /// </summary>
+    private static long Group(SceneDocument scene, Dictionary<string, long> groups, string assetPath, string name)
+    {
+        if (!groups.TryGetValue(assetPath, out long group))
+        {
+            groups[assetPath] = group = scene.AddGroup(name, scene.RootTransformId);
+        }
+        return group;
+    }
+
+    private static MetaPtr Pointer(ExportedAssetIndex.Entry entry) =>
+        new(entry.FileId, UnityGuid.Parse(entry.Guid), (AssetType)entry.ReferenceType);
+
+    /// <summary>
+    /// The scene's own .meta. Its guid is derived from the map id rather than drawn at
+    /// random, so re-exporting the same scene keeps the same asset identity and whatever
+    /// already referenced it keeps working.
+    /// </summary>
+    private static string SceneMeta(string mapName)
+    {
+        byte[] digest = System.Security.Cryptography.MD5.HashData(
+            Encoding.UTF8.GetBytes("ruri.scene:" + mapName));
+        string guid = Convert.ToHexString(digest).ToLowerInvariant();
+        return $"fileFormatVersion: 2\nguid: {guid}\nDefaultImporter:\n  externalObjects: {{}}\n"
+            + "  userData: \n  assetBundleName: \n  assetBundleVariant: \n";
+    }
 }
