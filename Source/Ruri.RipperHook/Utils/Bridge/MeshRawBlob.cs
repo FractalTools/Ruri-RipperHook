@@ -1,8 +1,10 @@
+using AssetRipper.Numerics;
 using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated.Subclasses.ChannelInfo;
 using AssetRipper.SourceGenerated.Subclasses.Matrix4x4f;
 using AssetRipper.SourceGenerated.Subclasses.SubMesh;
+using System.Numerics;
 using System.Text.Json;
 
 namespace Ruri.RipperHook.Bridge;
@@ -28,12 +30,25 @@ internal static class MeshRawBlob
         long shapeVertexCount, long variableBoneCountWeights,
         Dictionary<string, SectionEntry> sections);
 
+    private sealed record RawGeometry(
+        long vertexCount, List<ChannelEntry> channels, int indexSize, List<SubMeshEntry> subMeshes,
+        byte[] vertexBytes, byte[] indexBytes, Matrix4x4[]? bindPose, BoneWeight4[]? skin);
+
     public static MeshRawBlobResult Build(IMesh mesh)
     {
+        // Mesh Compression (Model Importer > Mesh Compression) bit-packs the geometry into
+        // m_CompressedMesh and leaves m_VertexData empty. Skipping those used to be safe-looking
+        // and was not: a skipped mesh reaches the host as ZERO VERTICES, which is exactly what a
+        // collision proxy looks like, so a scene could lose most of its renderers while every
+        // count still read as success (measured: 259 of 339 renderers in one VRChat world).
+        // AssetRipper unpacks the format itself; this rebuilds plain vertex/index buffers out of
+        // that, so the host keeps reading ONE geometry format and never learns this one exists.
         if (mesh.CompressedMesh.Vertices.NumItems > 0)
         {
-            return MeshRawBlobResult.Skipped(
-                "compressed mesh -- the geometry lives bit-packed in m_CompressedMesh, which no decode path reads");
+            return Unpacked(mesh) is { } unpacked
+                ? Assemble(mesh, unpacked)
+                : MeshRawBlobResult.Skipped(
+                    "compressed mesh whose bit-packed geometry AssetRipper could not unpack");
         }
         if (!mesh.VertexData.Has_Channels())
         {
@@ -61,8 +76,111 @@ internal static class MeshRawBlob
                 subMesh.BaseVertex, subMesh.FirstVertex, subMesh.VertexCount));
         }
 
-        byte[] indexBytes = mesh.IndexBuffer;
-        int bindPoseCount = mesh.BindPose.Count;
+        return Assemble(mesh, new RawGeometry(mesh.VertexData.VertexCount, channels,
+            mesh.Is16BitIndices() ? 2 : 4, subMeshes, vertexBytes, mesh.IndexBuffer, null, null));
+    }
+
+    /// <summary>
+    /// A compressed mesh as plain buffers, unpacked by AssetRipper's own reader
+    /// (<see cref="MeshData.TryMakeFromMesh"/>) rather than by a second implementation of the
+    /// bit packing. The channel table is synthesised in the MODERN 14-slot VertexAttribute
+    /// order, every attribute float32 in one stream -- the shape the host's decoder already
+    /// reads, so nothing on that side has to know a mesh was ever compressed. Skin stays out
+    /// of the channels and goes to the blob's own skin section, which is where the host looks
+    /// when no blend channels are declared.
+    /// </summary>
+    private static RawGeometry? Unpacked(IMesh mesh)
+    {
+        if (!MeshData.TryMakeFromMesh(mesh, out MeshData data) || data.Vertices.Length == 0)
+        {
+            return null;
+        }
+
+        int count = data.Vertices.Length;
+        Vector2[]?[] uvs = [data.UV0, data.UV1, data.UV2, data.UV3, data.UV4, data.UV5, data.UV6, data.UV7];
+
+        // One entry per semantic, in semantic order, dimension 0 for what this mesh does not
+        // carry -- a 14-channel table is what tells the host to read the modern order at all.
+        List<ChannelEntry> channels = new(14);
+        int stride = 0;
+        void Channel(bool present, int dimension)
+        {
+            channels.Add(new ChannelEntry(0, (byte)stride, 0, present ? (byte)dimension : (byte)0));
+            stride += present ? dimension * sizeof(float) : 0;
+        }
+        Channel(true, 3);                       // Position
+        Channel(data.HasNormals, 3);            // Normal
+        Channel(data.HasTangents, 4);           // Tangent
+        Channel(data.HasColors, 4);             // Color
+        foreach (Vector2[]? uv in uvs)
+        {
+            Channel(uv is not null && uv.Length == count, 2);
+        }
+        Channel(false, 4);                      // BlendWeight  -- carried in the skin section
+        Channel(false, 4);                      // BlendIndices --      "
+
+        byte[] vertexBytes = new byte[(long)count * stride <= int.MaxValue ? count * stride : 0];
+        if (vertexBytes.Length == 0 && count > 0)
+        {
+            return null;
+        }
+        Span<byte> vertexSpan = vertexBytes;
+        for (int vertex = 0; vertex < count; vertex++)
+        {
+            int cursor = vertex * stride;
+            Vector3 position = data.Vertices[vertex];
+            WriteFloats(vertexSpan, ref cursor, position.X, position.Y, position.Z);
+            if (data.HasNormals)
+            {
+                Vector3 normal = data.Normals[vertex];
+                WriteFloats(vertexSpan, ref cursor, normal.X, normal.Y, normal.Z);
+            }
+            if (data.HasTangents)
+            {
+                Vector4 tangent = data.Tangents[vertex];
+                WriteFloats(vertexSpan, ref cursor, tangent.X, tangent.Y, tangent.Z, tangent.W);
+            }
+            if (data.HasColors)
+            {
+                ColorFloat color = data.Colors[vertex];
+                WriteFloats(vertexSpan, ref cursor, color.R, color.G, color.B, color.A);
+            }
+            foreach (Vector2[]? uv in uvs)
+            {
+                if (uv is not null && uv.Length == count)
+                {
+                    WriteFloats(vertexSpan, ref cursor, uv[vertex].X, uv[vertex].Y);
+                }
+            }
+        }
+
+        // Unpacked indices are 32-bit whatever the file's own index format said, and a submesh
+        // window travels in BYTES of the buffer it indexes -- so it is restated against this one.
+        const int IndexSize = sizeof(uint);
+        byte[] indexBytes = new byte[data.ProcessedIndexBuffer.Length * IndexSize];
+        Span<byte> indexSpan = indexBytes;
+        for (int index = 0; index < data.ProcessedIndexBuffer.Length; index++)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+                indexSpan.Slice(index * IndexSize, IndexSize), data.ProcessedIndexBuffer[index]);
+        }
+
+        List<SubMeshEntry> subMeshes = new(data.SubMeshes.Length);
+        foreach (SubMeshData subMesh in data.SubMeshes)
+        {
+            subMeshes.Add(new SubMeshEntry((long)subMesh.FirstIndex * IndexSize, subMesh.IndexCount,
+                (int)subMesh.Topology, subMesh.BaseVertex, subMesh.FirstVertex, subMesh.VertexCount));
+        }
+
+        return new RawGeometry(count, channels, IndexSize, subMeshes, vertexBytes, indexBytes,
+            data.BindPose, data.Skin);
+    }
+
+    private static MeshRawBlobResult Assemble(IMesh mesh, RawGeometry geometry)
+    {
+        byte[] vertexBytes = geometry.vertexBytes;
+        byte[] indexBytes = geometry.indexBytes;
+        int bindPoseCount = geometry.bindPose?.Length ?? mesh.BindPose.Count;
         int boneHashCount = mesh.Has_BoneNameHashes() ? mesh.BoneNameHashes.Count : 0;
 
         List<float> fullWeights = new();
@@ -94,7 +212,7 @@ internal static class MeshRawBlob
         long bindPoseBytes = bindPoseCount * 16L * sizeof(float);
         long boneHashBytes = boneHashCount * (long)sizeof(uint);
         long shapeVertexBytes = shapeVertexCount * ShapeVertexStride;
-        long skinCount = mesh.Has_Skin() ? mesh.Skin.Count : 0;
+        long skinCount = geometry.skin?.Length ?? (mesh.Has_Skin() ? mesh.Skin.Count : 0);
         long skinBytes = skinCount * SkinStride;
         byte[] payload = new byte[vertexBytes.Length + indexBytes.Length + bindPoseBytes
             + boneHashBytes + shapeVertexBytes + skinBytes];
@@ -116,9 +234,23 @@ internal static class MeshRawBlob
         Section("bindPose", bindPoseBytes);
         Span<byte> bindSpan = payload.AsSpan((int)sections["bindPose"].off, (int)bindPoseBytes);
         int bindCursor = 0;
-        foreach (Matrix4x4f matrix in mesh.BindPose)
+        if (geometry.bindPose is { } unpackedBindPose)
         {
-            WriteMatrixRowMajor(matrix, bindSpan, ref bindCursor);
+            foreach (Matrix4x4 matrix in unpackedBindPose)
+            {
+                WriteFloats(bindSpan, ref bindCursor,
+                    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+                    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+                    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+                    matrix.M41, matrix.M42, matrix.M43, matrix.M44);
+            }
+        }
+        else
+        {
+            foreach (Matrix4x4f matrix in mesh.BindPose)
+            {
+                WriteMatrixRowMajor(matrix, bindSpan, ref bindCursor);
+            }
         }
 
         Section("boneNameHashes", boneHashBytes);
@@ -151,7 +283,17 @@ internal static class MeshRawBlob
         Section("skin", skinBytes);
         Span<byte> skinSpan = payload.AsSpan((int)sections["skin"].off, (int)skinBytes);
         int skinCursor = 0;
-        if (skinCount > 0)
+        if (geometry.skin is { } unpackedSkin)
+        {
+            foreach (BoneWeight4 weights in unpackedSkin)
+            {
+                WriteFloats(skinSpan, ref skinCursor,
+                    weights.Weight0, weights.Weight1, weights.Weight2, weights.Weight3);
+                WriteInts(skinSpan, ref skinCursor,
+                    weights.Index0, weights.Index1, weights.Index2, weights.Index3);
+            }
+        }
+        else if (skinCount > 0)
         {
             foreach (var weights in mesh.Skin)
             {
@@ -171,10 +313,10 @@ internal static class MeshRawBlob
 
         MeshIndex meta = new(
             mesh.Name.String,
-            mesh.VertexData.VertexCount,
-            channels,
-            mesh.Is16BitIndices() ? 2 : 4,
-            subMeshes,
+            geometry.vertexCount,
+            geometry.channels,
+            geometry.indexSize,
+            geometry.subMeshes,
             fullWeights,
             shapeChannels,
             shapeFrames,
