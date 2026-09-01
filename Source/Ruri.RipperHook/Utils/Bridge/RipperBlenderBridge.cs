@@ -29,14 +29,22 @@ public static class RipperBlenderBridge
     private static bool _loggingConfigured;
 
     /// <summary>
-    /// The features THIS host runs with, always. They are not a user choice: Blender takes the
-    /// add-on's own in-memory path, where a Unity humanoid rig has no equivalent at all and must
-    /// arrive as a generic one. Everything else an AssetRipper feature does (shader decompilation,
-    /// method dumps, file-tree exports) is about writing a project to disk, which this path never
-    /// does. A name that no feature claims is a build error at the first Initialize, not a silent
+    /// The features THIS host runs with, always. They are not a user choice, because each one
+    /// states something about the ASSETS this path hands over rather than about writing a
+    /// project to disk (shader decompilation, method dumps, file-tree exports — none of which
+    /// this path does):
+    /// <list type="bullet">
+    /// <item><c>HumanoidToGeneric</c> — a Unity humanoid rig has no equivalent in Blender at
+    /// all and must arrive as a generic one.</item>
+    /// <item><c>StaticMeshSeparation</c> — Unity's static batching combines many objects into
+    /// one shared mesh and leaves each renderer a window into it. Handed over combined, one
+    /// object's geometry is every batched neighbour's geometry, so this reverses the combine
+    /// and gives each instance its own mesh back.</item>
+    /// </list>
+    /// A name that no feature claims is a build error at the first Initialize, not a silent
     /// no-op.
     /// </summary>
-    public static readonly string[] HostFeatures = { "HumanoidToGeneric" };
+    public static readonly string[] HostFeatures = { "HumanoidToGeneric", "StaticMeshSeparation" };
 
     /// <summary>
     /// Every decoder compiled in, as flat triples (product, version, engineVersion) -- what a
@@ -688,6 +696,11 @@ public static class RipperBlenderBridge
         // HLSL was pure cost with no consumer.
         settings.ExportSettings.ShaderExportMode = ShaderExportMode.Dummy;
         settings.ImportSettings.ScriptContentLevel = AssetRipper.Import.Configuration.ScriptContentLevel.Level0;
+        // Stated here rather than left to the saved settings file: the StaticMeshSeparation
+        // feature this host always enables only yields its processor when this is on (see
+        // AR_StaticMeshSeparation_Hook), so a settings file with it turned off would disable
+        // a host feature silently -- and the failure looks like geometry bugs, not a setting.
+        settings.ProcessingSettings.EnableStaticMeshSeparation = true;
         settings.ExportSettings.PreferOriginalTextureExtension = true;
         settings.ExportSettings.ImageExportFormat = AssetRipper.Export.Configuration.ImageExportFormat.Png;
         ClipCaptureExporter clipCapture = new();
