@@ -1,3 +1,4 @@
+using AssetRipper.Assets;
 using AssetRipper.Import.Logging;
 using AssetRipper.SerializationLogic;
 using CUE4Parse.UE4;
@@ -69,7 +70,7 @@ public sealed class UnrealValueWriter
         {
             if (value is FPackageIndex pointer)
             {
-                writer.SetPointer(index, table.Find(pointer.ResolvedObject!));
+                writer.SetPointer(index, Target(pointer));
             }
             else
             {
@@ -112,6 +113,14 @@ public sealed class UnrealValueWriter
                 break;
         }
     }
+
+    /// <summary>
+    /// The Unity asset an object reference lands on: none when the reference never resolved
+    /// (a script class import with script data unread, an object outside the load) or when
+    /// the resolved object was not converted.
+    /// </summary>
+    private IUnityObjectBase? Target(FPackageIndex pointer) =>
+        pointer.ResolvedObject is null ? null : table.Find(pointer.ResolvedObject);
 
     private void WriteStruct(StructureWriter nested, IUStruct structValue)
     {
@@ -182,7 +191,7 @@ public sealed class UnrealValueWriter
                 {
                     if (element is FPackageIndex pointer && writer.ArrayElements(index)[i] is AssetRipper.SourceGenerated.Subclasses.PPtr_Object.IPPtr_Object holder)
                     {
-                        holder.SetAsset(writer.Collection, table.Find(pointer.ResolvedObject!) as AssetRipper.SourceGenerated.Classes.ClassID_0.IObject);
+                        holder.SetAsset(writer.Collection, Target(pointer) as AssetRipper.SourceGenerated.Classes.ClassID_0.IObject);
                     }
                     continue;
                 }

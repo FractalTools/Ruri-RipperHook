@@ -28,6 +28,8 @@ public static class MeshBuilder
 {
     private const int ChannelCount = 14;
     private const byte Float32Format = 0;
+    private const byte UInt32Format = (byte)MeshHelper.VertexFormat.kVertexFormatUInt32;
+    private const int BoneInfluences = 4;
     private const int TriangleTopology = 0;
 
     public static IMesh Build(ConvertedPackage package, MeshGeometry geometry, string? originalPath)
@@ -102,6 +104,9 @@ public static class MeshBuilder
         {
             dimensions[(int)ShaderChannel.UV0 + set] = geometry.TexCoords[set] is null ? 0 : 2;
         }
+        bool skinInStream = geometry.Skin is not null && !mesh.Has_Skin();
+        dimensions[(int)ShaderChannel.SkinWeight] = skinInStream ? BoneInfluences : 0;
+        dimensions[(int)ShaderChannel.SkinBoneIndex] = skinInStream ? BoneInfluences : 0;
 
         int stride = 0;
         Span<int> offsets = stackalloc int[ChannelCount];
@@ -118,13 +123,14 @@ public static class MeshBuilder
         {
             ChannelInfo info = channels.AddNew();
             info.Stream = 0;
-            info.Format = Float32Format;
+            info.Format = channel == (int)ShaderChannel.SkinBoneIndex ? UInt32Format : Float32Format;
             info.Dimension = (byte)dimensions[channel];
             info.Offset = (byte)(dimensions[channel] == 0 ? 0 : offsets[channel]);
         }
 
         byte[] data = new byte[checked(count * stride)];
         Span<float> floats = MemoryMarshal.Cast<byte, float>(data.AsSpan());
+        Span<uint> words = MemoryMarshal.Cast<byte, uint>(data.AsSpan());
         int floatStride = stride / sizeof(float);
         for (int vertex = 0; vertex < count; vertex++)
         {
@@ -166,6 +172,18 @@ public static class MeshBuilder
                 Vector2 uv = coordinates[vertex];
                 floats[cursor++] = uv.X;
                 floats[cursor++] = uv.Y;
+            }
+            if (skinInStream)
+            {
+                BoneWeight4 weight = geometry.Skin![vertex];
+                floats[cursor++] = weight.Weight0;
+                floats[cursor++] = weight.Weight1;
+                floats[cursor++] = weight.Weight2;
+                floats[cursor++] = weight.Weight3;
+                words[cursor++] = (uint)weight.Index0;
+                words[cursor++] = (uint)weight.Index1;
+                words[cursor++] = (uint)weight.Index2;
+                words[cursor++] = (uint)weight.Index3;
             }
         }
 
