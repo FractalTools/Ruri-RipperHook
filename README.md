@@ -44,10 +44,10 @@ public class MyHook : RipperHookCommon
 | `Source/Ruri.RipperHook` | AssetRipper 主增强层。读取、导出、网格拆分、prefab 处理、路径修复等通用 Hook |
 | `Source/Ruri.RipperHook.GUI` | 图形界面入口(AssetRipper 流程) |
 | `Source/Ruri.RipperHook.CLI` | 命令行入口,headless 导出与 Hook 列表查询 |
-| `Source/Ruri.FModelHook` | FModel / UE 侧增强,shader bytecode 导出与统一 metadata 整理 |
+| `Source/Ruri.FModelHook` | FModel / UE 侧增强,shader bytecode 导出与统一 metadata 整理;`Ripper/` 是 UE 解码器模块——RipperHook 宿主(CLI `--module` / GUI 配置 `Modules` / Blender 首选项)按路径加载它,UE 包在内存里经内核的引擎中立构建器变成 Unity 资产。依赖方向:FModelHook → RipperHook,内核不引用 CUE4Parse |
 | `Source/Ruri.FModelHook.GUI` | FModel 流程的图形界面入口 |
 | `Source/Ruri.ShaderDecompiler` | DX11 shader 反编译实现 |
-| `Source/Ruri.Tpk` | 把 TypeTree JSON 打包成 `RuriTypeTree.tpk`(Ruri.RipperHook 的内嵌资源) |
+| `Source/Ruri.Tpk` | 把 TypeTree JSON 打包成 `RuriTypeTree.tpk`(Ruri.RipperHook 的内嵌资源);UE lane(`Unreal/`,与 Unity lane 隔离):`--unreal <usmap>` 把 UE 反射 schema 直出为自定义引擎 tpk |
 | `AssetRipper/`, `FModel/` | 上游 submodule,**只读冻结**,差异通过 Hook 注入而非直接修改 |
 
 ## 主要能力
