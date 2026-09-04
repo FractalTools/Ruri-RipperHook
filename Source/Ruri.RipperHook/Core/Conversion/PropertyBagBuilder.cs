@@ -68,7 +68,7 @@ public static class PropertyBagBuilder
         {
             subNodes[i] = ToStruct(node.SubNodes[i]);
         }
-        return new TypeTreeNodeStruct(node.TypeName, node.OriginalName, node.Version, node.MetaFlag, subNodes);
+        return new TypeTreeNodeStruct(node.UnityTypeName, node.OriginalName, node.Version, node.MetaFlag, subNodes);
     }
 }
 

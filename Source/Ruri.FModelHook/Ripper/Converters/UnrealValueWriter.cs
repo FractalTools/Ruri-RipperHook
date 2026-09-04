@@ -48,41 +48,67 @@ public sealed class UnrealValueWriter
         }
     }
 
+    /// <summary>
+    /// The field's shape decides how a value is stated, never the value's own type: a schema
+    /// field is a pointer, a structure, a string or a number, and a value that cannot take that
+    /// shape is reported once and left at its default instead of failing the whole export.
+    /// </summary>
     private void Write(StructureWriter writer, int index, object? value)
     {
-        SerializableType.Field field = writer.FieldAt(index);
         if (value is null)
         {
             return;
         }
+        SerializableType.Field field = writer.FieldAt(index);
         if (field.ArrayDepth == 1)
         {
             WriteSequence(writer, index, field, value);
             return;
         }
-        switch (value)
+        if (field.Type.IsEnginePointer())
         {
-            case bool boolean: writer.SetBoolean(index, boolean); break;
-            case byte or sbyte or short or ushort or int or uint or long or ulong:
-                writer.SetInteger(index, Convert.ToInt64(value)); break;
-            case float or double: writer.SetReal(index, Convert.ToDouble(value)); break;
-            case string text: writer.SetString(index, text); break;
-            case FName name: writer.SetString(index, name.Text); break;
-            case FText text: writer.SetString(index, text.Text); break;
-            case FSoftObjectPath soft: writer.SetString(index, soft.AssetPathName.Text); break;
-            case FPackageIndex pointer: writer.SetPointer(index, table.Find(pointer.ResolvedObject!)); break;
-            case FScriptStruct scriptStruct: WriteStruct(writer.Nested(index), scriptStruct.StructType); break;
-            case FStructFallback fallback: WriteProperties(writer.Nested(index), fallback.Properties); break;
-            case Enum enumeration: writer.SetString(index, enumeration.ToString()); break;
-            default:
-                if (field.Type.Type == PrimitiveType.Complex)
+            if (value is FPackageIndex pointer)
+            {
+                writer.SetPointer(index, table.Find(pointer.ResolvedObject!));
+            }
+            else
+            {
+                ReportOnce($"{value.GetType().Name} into pointer '{field.Name}'");
+            }
+            return;
+        }
+        switch (field.Type.Type)
+        {
+            case PrimitiveType.Complex:
+                switch (value)
                 {
-                    WriteNative(writer.Nested(index), value);
+                    case FScriptStruct scriptStruct: WriteStruct(writer.Nested(index), scriptStruct.StructType); break;
+                    case FStructFallback fallback: WriteProperties(writer.Nested(index), fallback.Properties); break;
+                    case string or FName or FText or Enum or bool or byte or sbyte or short or ushort or int or uint or long or ulong or float or double:
+                        ReportOnce($"{value.GetType().Name} into structure '{field.Name}'");
+                        break;
+                    default: WriteNative(writer.Nested(index), value); break;
+                }
+                break;
+            case PrimitiveType.String:
+                if (value is FScriptStruct or FStructFallback)
+                {
+                    ReportOnce($"{value.GetType().Name} into string '{field.Name}'");
                 }
                 else
                 {
-                    ReportOnce($"{value.GetType().Name} into {field.Type.Type} '{field.Name}'");
+                    writer.SetString(index, Text(value));
                 }
+                break;
+            case PrimitiveType.Bool:
+                writer.SetBoolean(index, Integer(value) != 0);
+                break;
+            case PrimitiveType.Single:
+            case PrimitiveType.Double:
+                writer.SetReal(index, Real(value));
+                break;
+            default:
+                writer.SetInteger(index, Integer(value));
                 break;
         }
     }
@@ -250,7 +276,7 @@ public sealed class UnrealValueWriter
     {
         if (Reported.TryAdd(what, true))
         {
-            Logger.Verbose(LogCategory.Import, $"[Unreal] Property value not representable: {what}");
+            Logger.Info(LogCategory.Import, $"[Unreal] Property value not representable: {what}");
         }
     }
 }

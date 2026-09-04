@@ -14,6 +14,13 @@ public sealed class TypeTreeNode
 
     public string OriginalName { get; }
 
+    /// <summary>
+    /// The type name as Unity's own type trees spell it: the two string kinds this runtime tells
+    /// apart are both a plain <c>string</c> there, and a consumer that reads through Unity's
+    /// vocabulary (AssetRipper's node structs) must be handed that spelling back.
+    /// </summary>
+    public string UnityTypeName => TypeName is Utf8StringTypeName or PropertyNameTypeName ? "string" : TypeName;
+
     public string TypeName { get; }
 
     public int Version { get; }
