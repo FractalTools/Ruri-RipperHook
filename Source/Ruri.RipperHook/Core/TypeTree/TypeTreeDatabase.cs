@@ -27,8 +27,22 @@ public static class TypeTreeDatabase
 
     private sealed class Lineage
     {
-        public required TpkTypeTreeBlob Blob;
-        public required Dictionary<int, TpkClassInformation> ClassesById;
+        public required IReadOnlyList<TpkTypeTreeBlob> Blobs;
+        public required Dictionary<int, (TpkClassInformation Class, TpkTypeTreeBlob Blob)> ClassesById;
+        public Dictionary<string, int>? IdsByName;
+
+        public static Lineage From(IReadOnlyList<TpkTypeTreeBlob> blobs)
+        {
+            Dictionary<int, (TpkClassInformation, TpkTypeTreeBlob)> classesById = new();
+            foreach (TpkTypeTreeBlob blob in blobs)
+            {
+                foreach (TpkClassInformation classInformation in blob.ClassInformation)
+                {
+                    classesById[classInformation.ID] = (classInformation, blob);
+                }
+            }
+            return new Lineage { Blobs = blobs, ClassesById = classesById };
+        }
     }
 
     public static string Origin
@@ -47,6 +61,72 @@ public static class TypeTreeDatabase
             EnsureLoaded();
             return _manifest!;
         }
+    }
+
+    /// <summary>
+    /// Add (or replace) a lineage built at run time -- a schema read from the install itself,
+    /// such as another engine's reflection dump restated as type trees -- so its classes resolve
+    /// exactly like the packed ones. <paramref name="versions"/> lists the lineage's snapshots in
+    /// ordinal order with the Unity layout version each was emitted against.
+    /// </summary>
+    public static void RegisterLineage(string key, IReadOnlyList<TpkTypeTreeBlob> blobs, IReadOnlyList<(string Version, string Engine)> versions)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        ArgumentNullException.ThrowIfNull(blobs);
+        EnsureLoaded();
+        lock (SyncRoot)
+        {
+            _lineages![key] = Lineage.From(blobs);
+
+            TypeTreeManifest.LineageEntry entry = new() { Key = key };
+            foreach ((string version, string engine) in versions)
+            {
+                entry.Versions.Add(new TypeTreeManifest.VersionEntry { Key = version, Engine = engine });
+            }
+            _manifest!.Lineages.RemoveAll(existing => existing.Key == key);
+            _manifest.Lineages.Add(entry);
+            _manifest.Invalidate();
+        }
+        foreach (var cached in ReleaseRootCache.Keys.Where(cacheKey => cacheKey.Lineage == key).ToArray())
+        {
+            ReleaseRootCache.TryRemove(cached, out _);
+        }
+        foreach (var cached in EditorRootCache.Keys.Where(cacheKey => cacheKey.Lineage == key).ToArray())
+        {
+            EditorRootCache.TryRemove(cached, out _);
+        }
+    }
+
+    /// <summary>
+    /// The class id a lineage files <paramref name="className"/> under, or -1. Class ids of a
+    /// lineage restated from a named schema are ordinals assigned at pack time, so a name is
+    /// the only identity the source can ask by.
+    /// </summary>
+    public static int ClassIdByName(string lineageKey, string className)
+    {
+        EnsureLoaded();
+        if (!_lineages!.TryGetValue(lineageKey, out Lineage? lineage))
+        {
+            return -1;
+        }
+        Dictionary<string, int>? index = lineage.IdsByName;
+        if (index is null)
+        {
+            index = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach ((TpkClassInformation classInformation, TpkTypeTreeBlob blob) in lineage.ClassesById.Values)
+            {
+                foreach (KeyValuePair<UnityVersion, TpkUnityClass?> pair in classInformation.Classes)
+                {
+                    if (pair.Value is not null)
+                    {
+                        index[blob.StringBuffer[pair.Value.Name]] = classInformation.ID;
+                        break;
+                    }
+                }
+            }
+            lineage.IdsByName = index;
+        }
+        return index.TryGetValue(className, out int id) ? id : -1;
     }
 
     public static UnityVersion GetEngineVersion(TypeTreeVersion version)
@@ -105,12 +185,12 @@ public static class TypeTreeDatabase
                 "Dump that build's type tree and repack -- reading it with a neighbouring build's layout is not safe.");
         }
 
-        if (!lineage.ClassesById.TryGetValue(classID, out TpkClassInformation? classInformation))
+        if (!lineage.ClassesById.TryGetValue(classID, out (TpkClassInformation Class, TpkTypeTreeBlob Blob) entry))
         {
             return null;
         }
 
-        TpkUnityClass? unityClass = GetItemForOrdinal(classInformation.Classes, ordinal);
+        TpkUnityClass? unityClass = GetItemForOrdinal(entry.Class.Classes, ordinal);
         if (unityClass is null)
         {
             return null;
@@ -123,7 +203,7 @@ public static class TypeTreeDatabase
         }
 
         ushort root = editor ? unityClass.EditorRootNode : unityClass.ReleaseRootNode;
-        return TypeTreeNode.FromTpk(lineage.Blob.NodeBuffer[root], lineage.Blob.StringBuffer, lineage.Blob.NodeBuffer);
+        return TypeTreeNode.FromTpk(entry.Blob.NodeBuffer[root], entry.Blob.StringBuffer, entry.Blob.NodeBuffer);
     }
 
     private static TpkUnityClass? GetItemForOrdinal(List<KeyValuePair<UnityVersion, TpkUnityClass?>> list, int ordinal)
@@ -175,15 +255,8 @@ public static class TypeTreeDatabase
                         break;
 
                     case TpkTypeTreeBlob typeTree:
-                    {
-                        Dictionary<int, TpkClassInformation> classesById = new(typeTree.ClassInformation.Count);
-                        foreach (TpkClassInformation classInformation in typeTree.ClassInformation)
-                        {
-                            classesById[classInformation.ID] = classInformation;
-                        }
-                        lineages[pair.Key] = new Lineage { Blob = typeTree, ClassesById = classesById };
+                        lineages[pair.Key] = Lineage.From([typeTree]);
                         break;
-                    }
                 }
             }
 

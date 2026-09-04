@@ -64,6 +64,22 @@ public static class ClipBuilder
         }
 
         IAnimationClip clip = package.Create<IAnimationClip>(ClassIDType.AnimationClip, name, originalPath);
+        Fill(clip, sampleRate, frameCount, tracks, floatTracks);
+        return clip;
+    }
+
+    public static void Fill(IAnimationClip clip, float sampleRate, int frameCount,
+        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (sampleRate <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleRate), sampleRate, "A clip needs a positive sample rate.");
+        }
+        if (frameCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frameCount), frameCount, "A clip needs at least one frame.");
+        }
         clip.SampleRate_C74 = sampleRate;
         clip.Legacy_C74 = false;
         clip.Compressed_C74 = false;
@@ -107,7 +123,6 @@ public static class ClipBuilder
             Validate(track.Values.Length, frameCount, track.Path + "/" + track.Attribute);
             WriteFloat(clip, track, sampleRate);
         }
-        return clip;
     }
 
     private static void Validate(int length, int frameCount, string path)

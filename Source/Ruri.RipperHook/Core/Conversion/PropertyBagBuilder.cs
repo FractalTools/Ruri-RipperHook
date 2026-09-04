@@ -93,6 +93,8 @@ public readonly struct StructureWriter
 
     public SerializableStructure Structure => structure;
 
+    public AssetCollection Collection => collection;
+
     public bool TryField(string name, out int index) => structure.TryGetIndex(name, out index);
 
     public SerializableType.Field FieldAt(int index) => structure.Type.Fields[index];

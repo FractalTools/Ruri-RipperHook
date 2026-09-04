@@ -34,9 +34,16 @@ public static class MeshBuilder
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(geometry);
-        Validate(geometry);
-
         IMesh mesh = package.Create<IMesh>(ClassIDType.Mesh, geometry.Name, originalPath);
+        Fill(mesh, geometry);
+        return mesh;
+    }
+
+    public static void Fill(IMesh mesh, MeshGeometry geometry)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        ArgumentNullException.ThrowIfNull(geometry);
+        Validate(geometry);
         WriteVertexData(mesh, geometry);
         WriteIndices(mesh, geometry);
         WriteSkin(mesh, geometry);
@@ -49,7 +56,6 @@ public static class MeshBuilder
         mesh.KeepIndices = true;
         mesh.MeshUsageFlags = 0;
         mesh.SetMeshCompression(ModelImporterMeshCompression.Off);
-        return mesh;
     }
 
     private static void Validate(MeshGeometry geometry)

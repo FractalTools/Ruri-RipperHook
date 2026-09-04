@@ -57,6 +57,13 @@ public static class MaterialBuilder
     {
         ArgumentNullException.ThrowIfNull(package);
         IShader shader = package.Create<IShader>(ClassIDType.Shader, name, originalPath);
+        FillShader(shader, name, properties);
+        return shader;
+    }
+
+    public static void FillShader(IShader shader, string name, IReadOnlyList<ShaderProperty> properties)
+    {
+        ArgumentNullException.ThrowIfNull(shader);
         if (shader.Has_ParsedForm())
         {
             shader.ParsedForm!.Name_R = name;
@@ -80,7 +87,6 @@ public static class MaterialBuilder
                 }
             }
         }
-        return shader;
     }
 
     public static IMaterial Material(ConvertedPackage package, MaterialInputs inputs, string? originalPath)
@@ -88,10 +94,18 @@ public static class MaterialBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(inputs);
         IMaterial material = package.Create<IMaterial>(ClassIDType.Material, inputs.Name, originalPath);
+        FillMaterial(material, inputs);
+        return material;
+    }
+
+    public static void FillMaterial(IMaterial material, MaterialInputs inputs)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(inputs);
         material.Shader_C21P = inputs.Shader;
 
         var texEnvs = material.SavedProperties_C21.TexEnvs_AssetDictionary_Utf8String_UnityTexEnv_5
-            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {package.Space.Version} keeps no string-keyed texture table.");
+            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {material.Collection.Version} keeps no string-keyed texture table.");
         foreach ((string name, ITexture2D? texture, Vector2 scale, Vector2 offset) in inputs.Textures)
         {
             AccessPairBase<Utf8String, UnityTexEnv_5> pair = texEnvs.AddNew();
@@ -102,14 +116,14 @@ public static class MaterialBuilder
         }
 
         var floats = material.SavedProperties_C21.Floats_AssetDictionary_Utf8String_Single
-            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {package.Space.Version} keeps no string-keyed float table.");
+            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {material.Collection.Version} keeps no string-keyed float table.");
         foreach ((string name, float value) in inputs.Floats)
         {
             floats.Add(name, value);
         }
 
         var colors = material.SavedProperties_C21.Colors_AssetDictionary_Utf8String_ColorRGBAf
-            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {package.Space.Version} keeps no string-keyed colour table.");
+            ?? throw new InvalidOperationException($"[MaterialBuilder] Material at {material.Collection.Version} keeps no string-keyed colour table.");
         foreach ((string name, Vector4 color) in inputs.Colors)
         {
             AccessPairBase<Utf8String, ColorRGBAf> pair = colors.AddNew();
@@ -124,6 +138,5 @@ public static class MaterialBuilder
                 material.ShaderKeywords_C21_AssetList_Utf8String!.Add(keyword);
             }
         }
-        return material;
     }
 }

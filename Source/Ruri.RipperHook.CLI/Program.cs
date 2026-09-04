@@ -65,6 +65,7 @@ internal static class Program
                 Console.Error.WriteLine("[Ruri.CLI] --build-cab-map needs --load <rootDir> to scan.");
                 return 1;
             }
+            AssetRipper.Import.Logging.Logger.Add(new StderrLogger { MinLevel = opts.LogLevel });
             return CabMap.Build(opts.LoadPaths[0], buildOut);
         }
 

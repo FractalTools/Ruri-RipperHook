@@ -62,6 +62,14 @@ public static class TextureBuilder
         ArgumentNullException.ThrowIfNull(pixels);
 
         ITexture2D texture = package.Create<ITexture2D>(ClassIDType.Texture2D, name, originalPath);
+        Fill(texture, pixels);
+        return texture;
+    }
+
+    public static void Fill(ITexture2D texture, TexturePixels pixels)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        ArgumentNullException.ThrowIfNull(pixels);
         texture.Width_C28 = pixels.Width;
         texture.Height_C28 = pixels.Height;
         texture.Format_C28E = pixels.Format;
@@ -90,6 +98,5 @@ public static class TextureBuilder
         texture.TextureSettings_C28.WrapU = pixels.RepeatU ? RepeatWrap : ClampWrap;
         texture.TextureSettings_C28.WrapV = pixels.RepeatV ? RepeatWrap : ClampWrap;
         texture.TextureSettings_C28.WrapW = RepeatWrap;
-        return texture;
     }
 }

@@ -37,6 +37,8 @@ public sealed class TypeTreeManifest
 
     private Dictionary<string, LineageEntry>? byKey;
 
+    public void Invalidate() => byKey = null;
+
     public LineageEntry? Find(string lineage)
     {
         byKey ??= BuildIndex();
