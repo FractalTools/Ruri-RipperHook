@@ -81,6 +81,31 @@ public static class HookCatalog
         AppDomain.CurrentDomain.AssemblyLoad += (_, _) => Invalidate();
     }
 
+    private static Type? hostFamily;
+
+    /// <summary>
+    /// The hook family THIS host runs: the <see cref="GameHookAttribute"/> subclass its decoders
+    /// carry. Once declared, decoders of every other family stay out of the catalog -- an
+    /// assembly can hold hooks for more than one host (FModelHook carries both FModel's own and
+    /// the Unreal decoder RipperHook hosts load), and a host must never list, let alone apply,
+    /// hooks written against another host's types. Features, readers and probes are not
+    /// family-bound and are always cataloged.
+    /// </summary>
+    public static void DeclareHost(Type gameHookAttributeType)
+    {
+        ArgumentNullException.ThrowIfNull(gameHookAttributeType);
+        if (!typeof(GameHookAttribute).IsAssignableFrom(gameHookAttributeType))
+        {
+            throw new ArgumentException($"{gameHookAttributeType.FullName} is not a {nameof(GameHookAttribute)}.", nameof(gameHookAttributeType));
+        }
+        if (hostFamily == gameHookAttributeType)
+        {
+            return;
+        }
+        hostFamily = gameHookAttributeType;
+        Invalidate();
+    }
+
     public static void Invalidate()
     {
         lock (SyncRoot)
@@ -229,7 +254,10 @@ public static class HookCatalog
             {
                 if (attribute is GameHookAttribute game)
                 {
-                    snapshot.Decoders.Add(new DecoderHook(type, game));
+                    if (hostFamily is null || hostFamily.IsInstanceOfType(game))
+                    {
+                        snapshot.Decoders.Add(new DecoderHook(type, game));
+                    }
                     break;
                 }
                 if (attribute is FeatureHookAttribute feature)

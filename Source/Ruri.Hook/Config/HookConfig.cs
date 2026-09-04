@@ -10,6 +10,8 @@ public class HookConfig
 {
     public HashSet<string> EnabledHooks { get; set; } = new();
 
+    public List<string> Modules { get; set; } = new();
+
     public Dictionary<string, JToken> ModuleSettings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public T? GetModuleSettings<T>(string moduleKey) where T : class, new()

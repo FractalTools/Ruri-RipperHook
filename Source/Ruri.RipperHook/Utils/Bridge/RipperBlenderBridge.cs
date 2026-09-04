@@ -122,6 +122,14 @@ public static class RipperBlenderBridge
     }
 
     /// <summary>
+    /// Load one more hook assembly -- a module built into another host's output, with its
+    /// dependencies beside it -- so every decoder and install probe it declares answers
+    /// <see cref="ListDecoders"/>, <see cref="ReadInstall"/> and <see cref="ResolveDecoder"/>
+    /// from then on. A path that does not exist is an error, never a silent skip.
+    /// </summary>
+    public static void LoadModule(string assemblyPath) => Bootstrap.LoadModule(assemblyPath);
+
+    /// <summary>
     /// Open the session on ONE install through ONE decoder. The host states which install and
     /// which decoder; which features run is this host's own fact (<see cref="HostFeatures"/>),
     /// never part of that statement. An empty decoder id is a valid configuration: a plain

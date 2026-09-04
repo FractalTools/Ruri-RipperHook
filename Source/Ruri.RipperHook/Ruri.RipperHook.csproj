@@ -78,11 +78,6 @@
 		<ProjectReference Include="..\Ruri.ShaderDecompiler\Ruri.ShaderDecompiler.csproj" />
 		<ProjectReference Include="..\Ruri.Hook\Ruri.Hook.csproj" />
 		<ProjectReference Include="..\Ruri.ACL\Ruri.ACL.csproj" />
-		<!-- The Unreal source: CUE4Parse reads every container and object format Unreal ships,
-		     CUE4Parse-Conversion states meshes and animations as engine-neutral records. Both
-		     frozen upstream submodules under FModel/, referenced never modified. -->
-		<ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse\CUE4Parse.csproj" />
-		<ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse-Conversion\CUE4Parse-Conversion.csproj" />
 	</ItemGroup>
 
 	<!-- The game type trees, interpreted at runtime by Ruri.RipperHook.Core.TypeTree. They live with

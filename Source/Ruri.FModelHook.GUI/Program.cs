@@ -84,6 +84,7 @@ public static class Program
         _ = typeof(Ruri.FModelHook.GameType);
         _ = typeof(Ruri.FModelHook.Game.SBUE.ShaderDecompiler.UE_ShaderDecompiler_Hook);
 
+        Ruri.Hook.Core.HookCatalog.DeclareHost(typeof(Ruri.FModelHook.Attributes.FModelHookAttribute));
         TryLoad("Ruri.FModelHook");
 
         int hookCount = Ruri.Hook.Core.HookCatalog.Decoders.Count;

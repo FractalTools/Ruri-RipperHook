@@ -99,6 +99,7 @@ internal static class Program
         Console.Error.WriteLine($"[Ruri.CLI] hooks: {string.Join(", ", config.EnabledHooks)}");
         Data.CoreDatasets.Register();
         Data.Session.SetOptions(ParseSourceOptions(opts.SourceOptions));
+        config.Modules.AddRange(opts.Modules);
         Bootstrap.ApplyHooks(config);
         Data.Session.Open(opts.LoadPaths.Length > 0 ? opts.LoadPaths[0] : string.Empty, config.EnabledHooks);
     }

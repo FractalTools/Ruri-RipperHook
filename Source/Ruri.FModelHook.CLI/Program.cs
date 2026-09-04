@@ -433,6 +433,7 @@ public static class Program
 
     private static void EnsureHookAssembliesLoaded()
     {
+        Ruri.Hook.Core.HookCatalog.DeclareHost(typeof(Ruri.FModelHook.Attributes.FModelHookAttribute));
         _ = typeof(Ruri.FModelHook.GameType);
         _ = typeof(Ruri.FModelHook.Game.SBUE.ShaderDecompiler.UE_ShaderDecompiler_Hook);
         try { Assembly.Load("Ruri.FModelHook"); } catch {}

@@ -37,11 +37,13 @@ jobs:
 
       - name: Update required submodules
         shell: pwsh
+        # FModelHook references Ruri.RipperHook (its Ripper/ tree is the Unreal decoder the
+        # RipperHook hosts load as a module), so the AssetRipper graph is part of this build too.
         # git aborts the whole update when any path here is missing from .gitmodules, leaving
         # every submodule uninitialized. Unchecked, that surfaces as thousands of CS0234s in
         # the build step instead of here, so every call is checked and the checkout asserted.
         run: |
-          $submodules = @("FModel", "Source/Ruri.ShaderDecompiler")
+          $submodules = @("FModel", "AssetRipper", "Source/Ruri.ShaderDecompiler")
           git submodule sync --recursive
           if ($LASTEXITCODE -ne 0) { throw "git submodule sync failed ($LASTEXITCODE)" }
           git submodule update --init --recursive --jobs 4 -- @submodules
@@ -61,16 +63,17 @@ jobs:
 
       - name: Build FModelHook GUI
         shell: pwsh
-        # NuGet sources come from the repo-root nuget.config (nuget.org + SamboyDev).
-        # No --configfile here: AssetRipper submodule isn't initialized in this job,
-        # so AssetRipper\nuget.config wouldn't exist anyway.
-        run: dotnet build "Source\Ruri.FModelHook.GUI\Ruri.FModelHook.GUI.csproj" -c $env:BUILD_CONFIGURATION -m:1
+        # NuGet sources come from the repo-root nuget.config (nuget.org + SamboyDev); no
+        # --configfile, so AssetRipper\nuget.config never shadows nuget.org.
+        # -p:PureRelease=true reaches the referenced Ruri.RipperHook: the game-hook submodule
+        # is not checked out here, and the pure kernel is what a module ships against.
+        run: dotnet build "Source\Ruri.FModelHook.GUI\Ruri.FModelHook.GUI.csproj" -c $env:BUILD_CONFIGURATION -p:PureRelease=true -m:1
 
       - name: Build FModelHook CLI
         shell: pwsh
         # Sibling exe project (not referenced by the GUI project), shares the GUI's
         # output folder -- must be built explicitly or its .exe never gets produced.
-        run: dotnet build "Source\Ruri.FModelHook.CLI\Ruri.FModelHook.CLI.csproj" -c $env:BUILD_CONFIGURATION -m:1
+        run: dotnet build "Source\Ruri.FModelHook.CLI\Ruri.FModelHook.CLI.csproj" -c $env:BUILD_CONFIGURATION -p:PureRelease=true -m:1
 
       - name: Upload FModelHook artifact
         uses: actions/upload-artifact@v4

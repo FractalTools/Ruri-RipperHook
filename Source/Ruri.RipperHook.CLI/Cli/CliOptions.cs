@@ -60,6 +60,7 @@ internal sealed class CliOptions
     public string? ExportStandardBundlePath { get; init; }
 
     public string[] SourceOptions { get; init; } = [];
+    public string[] Modules { get; init; } = [];
 }
 
 internal sealed class CliOptionsBinder : BinderBase<CliOptions>
@@ -109,6 +110,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
     public Option<string?> ExportStandardBundleOption { get; }
 
     public Option<string[]> SourceOptionOption { get; }
+    public Option<string[]> ModuleOption { get; }
 
     public Argument<string[]> Passthrough { get; }
 
@@ -214,6 +216,10 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
         {
             AllowMultipleArgumentsPerToken = true,
         };
+        ModuleOption = new Option<string[]>("--module", "A hook assembly to load before hooks apply (repeatable), resolved with the dependencies beside it: a module such as Ruri.FModelHook.dll, whose decoders then answer --list-hooks and --hook like the built-in ones.")
+        {
+            AllowMultipleArgumentsPerToken = true,
+        };
         DataOutOption = new Option<string?>("--data-out",
             "Write a blob dataset's bytes to this file instead of printing a table "
             + "(e.g. --data core.bundle.standard --data-arg bundle=<path> --data-out out.ab).");
@@ -255,6 +261,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             DataOutOption,
             ExportStandardBundleOption,
             SourceOptionOption,
+            ModuleOption,
             Passthrough,
         };
         return root;
@@ -294,6 +301,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             DatasetOut = pr.GetValueForOption(DataOutOption),
             ExportStandardBundlePath = pr.GetValueForOption(ExportStandardBundleOption),
             SourceOptions = pr.GetValueForOption(SourceOptionOption) ?? [],
+            Modules = pr.GetValueForOption(ModuleOption) ?? [],
             DatasetList = pr.GetValueForOption(DataListOption),
             Passthrough = pr.GetValueForArgument(Passthrough) ?? [],
         };

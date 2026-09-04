@@ -1,11 +1,12 @@
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.Primitives;
 using AssetRipper.Tpk.TypeTrees;
+using Ruri.RipperHook.Core.TypeTree;
 using CUE4Parse.MappingsProvider;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Ruri.RipperHook.Core.TypeTree.Unreal;
+namespace Ruri.FModelHook.Ripper.TypeTree;
 
 /// <summary>
 /// Every struct a .usmap declares, restated as the type trees of a custom engine: one class per

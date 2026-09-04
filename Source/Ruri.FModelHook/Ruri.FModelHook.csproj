@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -15,6 +15,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Ruri.Hook\Ruri.Hook.csproj" />
     <ProjectReference Include="..\Ruri.ShaderDecompiler\Ruri.ShaderDecompiler.csproj" />
+    <!-- The Ripper side of this assembly (Ripper/): the Unreal decoder every RipperHook host
+         loads as a module, converting Unreal packages into Unity assets through the kernel's
+         engine-neutral builders. The kernel never references the Unreal stack; this assembly
+         references the kernel. -->
+    <ProjectReference Include="..\Ruri.RipperHook\Ruri.RipperHook.csproj" />
     <ProjectReference Include="..\..\FModel\FModel\FModel.csproj" />
     <ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse\CUE4Parse.csproj" />
     <ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse-Conversion\CUE4Parse-Conversion.csproj" />
