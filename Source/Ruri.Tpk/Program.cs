@@ -14,6 +14,11 @@ internal static class Program
         var sw = Stopwatch.StartNew();
         try
         {
+            if (args.Length > 0 && args[0] is Unreal.UnrealTpkLane.Switch)
+            {
+                return Unreal.UnrealTpkLane.Run(args[1..]);
+            }
+
             bool drift = args.Length > 0 && args[0] is "--drift";
             if (drift)
             {
@@ -22,7 +27,7 @@ internal static class Program
 
             if (args.Length > 2)
             {
-                throw new ArgumentException("Usage: Ruri.Tpk [--drift] [<TypeTree dump root>] [<output path>]");
+                throw new ArgumentException($"Usage: Ruri.Tpk [--drift] [<TypeTree dump root>] [<output path>] | Ruri.Tpk {Unreal.UnrealTpkLane.Switch} <mappings.usmap> [<output.tpk>] [<unity layout version>]");
             }
 
             string dumpRoot = ResolveDumpRoot(args.Length > 0 ? args[0] : DefaultDumpRoot);

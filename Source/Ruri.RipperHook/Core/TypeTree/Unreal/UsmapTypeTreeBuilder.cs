@@ -24,6 +24,12 @@ public sealed class UsmapTypeTreeBuilder
     public const string AssemblyName = "UnrealEngine";
     public const string RootNodeName = "Base";
 
+    /// <summary>The lineage's one version key: a schema is a snapshot, not a version series.</summary>
+    public const string VersionKey = "usmap";
+
+    /// <summary>The Unity layout every converted asset -- and every schema class -- is emitted at.</summary>
+    public static readonly UnityVersion LayoutVersion = new(2022, 3, 62, UnityVersionType.Final, 1);
+
     private const int NodeBudget = 60000;
     private const int NestingLimit = 10;
 

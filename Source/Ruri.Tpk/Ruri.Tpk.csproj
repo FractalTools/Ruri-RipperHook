@@ -26,11 +26,16 @@
 		<Compile Include="..\Ruri.RipperHook\Core\TypeTree\TypeTreeNameFixer.cs" Link="Contract\TypeTreeNameFixer.cs" />
 		<Compile Include="..\Ruri.RipperHook\Core\TypeTree\TypeTreeManifest.cs" Link="Contract\TypeTreeManifest.cs" />
 		<Compile Include="..\Ruri.RipperHook\Core\TypeTree\TypeTreeOrdinal.cs" Link="Contract\TypeTreeOrdinal.cs" />
+		<!-- The Unreal lane restates a .usmap as this custom engine's type trees with the very
+		     builder the runtime registers the mounted schema through, so the packed file and the
+		     live lineage can never disagree. -->
+		<Compile Include="..\Ruri.RipperHook\Core\TypeTree\Unreal\UsmapTypeTreeBuilder.cs" Link="Unreal\UsmapTypeTreeBuilder.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="AssetRipper.Tpk" Version="2.0.0" />
 		<PackageReference Include="AssetRipper.Tpk.TypeTrees.Json" Version="2.0.0" />
+		<ProjectReference Include="..\..\FModel\CUE4Parse\CUE4Parse\CUE4Parse.csproj" />
 		<ProjectReference Include="..\..\AssetRipper\Source\AssetRipper.SourceGenerated.Extensions\AssetRipper.SourceGenerated.Extensions.csproj" />
 		<!-- Build AR.AssemblyDumper but reference its output via Reference (below) so the
 		     IgnoresAccessChecksToGenerator publicizer kicks in for internals access: the tpk packer
