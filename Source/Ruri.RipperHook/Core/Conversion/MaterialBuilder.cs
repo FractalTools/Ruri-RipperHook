@@ -53,6 +53,9 @@ public sealed class MaterialInputs
 /// </summary>
 public static class MaterialBuilder
 {
+    /// <summary>Unity's TextureDimension.Tex2D, the dimension every texture input here is stated with.</summary>
+    private const int TwoDimensional = 2;
+
     public static IShader Shader(ConvertedPackage package, string name, string? originalPath, IReadOnlyList<ShaderProperty> properties)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -77,6 +80,7 @@ public static class MaterialBuilder
                 if (property.Kind == ShaderPropertyKind.Texture)
                 {
                     entry.DefTexture.DefaultName = "white";
+                    entry.DefTexture.TexDim = TwoDimensional;
                 }
                 if (property.Kind == ShaderPropertyKind.Color)
                 {

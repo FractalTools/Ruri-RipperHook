@@ -50,7 +50,7 @@ public sealed class MaterialConverter : IUnrealConverter
             return;
         }
         CMaterialParams2 parameters = new();
-        source.GetParams(parameters, EMaterialDepth.AllLayersNoRef);
+        source.GetParams(parameters, EMaterialDepth.AllLayers);
 
         UMaterial? root = RootMaterial(source);
         IShader? shader = root is null ? null : conversion.Table.Find<IShader>(root, ShaderSlot);
