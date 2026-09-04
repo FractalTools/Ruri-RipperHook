@@ -58,6 +58,8 @@ internal sealed class CliOptions
     public string? DatasetOut { get; init; }
 
     public string? ExportStandardBundlePath { get; init; }
+
+    public string[] SourceOptions { get; init; } = [];
 }
 
 internal sealed class CliOptionsBinder : BinderBase<CliOptions>
@@ -105,6 +107,8 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
     public Option<string?> DataOutOption { get; }
 
     public Option<string?> ExportStandardBundleOption { get; }
+
+    public Option<string[]> SourceOptionOption { get; }
 
     public Argument<string[]> Passthrough { get; }
 
@@ -206,6 +210,10 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             "Rewrite what --load opened as a stock uncompressed UnityFS AssetBundle at this path. "
             + "Assets are re-serialized from the hook's type tree into the official layout, so vanilla "
             + "readers accept them. Narrow it with --types.");
+        SourceOptionOption = new Option<string[]>("--source-option", "How the install is to be READ beyond its folder, as name=value (repeatable): the values the active decoder needs to open its files (an archive key, an engine version, a schema file). The decoder publishes the names it reads as the dataset its own hook declares.")
+        {
+            AllowMultipleArgumentsPerToken = true,
+        };
         DataOutOption = new Option<string?>("--data-out",
             "Write a blob dataset's bytes to this file instead of printing a table "
             + "(e.g. --data core.bundle.standard --data-arg bundle=<path> --data-out out.ab).");
@@ -246,6 +254,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             DataListOption,
             DataOutOption,
             ExportStandardBundleOption,
+            SourceOptionOption,
             Passthrough,
         };
         return root;
@@ -284,6 +293,7 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             DatasetArgs = pr.GetValueForOption(DataArgOption) ?? [],
             DatasetOut = pr.GetValueForOption(DataOutOption),
             ExportStandardBundlePath = pr.GetValueForOption(ExportStandardBundleOption),
+            SourceOptions = pr.GetValueForOption(SourceOptionOption) ?? [],
             DatasetList = pr.GetValueForOption(DataListOption),
             Passthrough = pr.GetValueForArgument(Passthrough) ?? [],
         };

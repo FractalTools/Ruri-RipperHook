@@ -97,8 +97,24 @@ internal static class Program
         }
         Console.Error.WriteLine($"[Ruri.CLI] hooks: {string.Join(", ", config.EnabledHooks)}");
         Data.CoreDatasets.Register();
+        Data.Session.SetOptions(ParseSourceOptions(opts.SourceOptions));
         Bootstrap.ApplyHooks(config);
         Data.Session.Open(opts.LoadPaths.Length > 0 ? opts.LoadPaths[0] : string.Empty, config.EnabledHooks);
+    }
+
+    private static Dictionary<string, string> ParseSourceOptions(string[] pairs)
+    {
+        Dictionary<string, string> options = new(StringComparer.Ordinal);
+        foreach (string pair in pairs)
+        {
+            int separator = pair.IndexOf('=');
+            if (separator <= 0)
+            {
+                throw new ArgumentException($"--source-option takes name=value; got '{pair}'.");
+            }
+            options[pair[..separator]] = pair[(separator + 1)..];
+        }
+        return options;
     }
 
 }

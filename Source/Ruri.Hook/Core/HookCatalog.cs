@@ -70,6 +70,7 @@ public static class HookCatalog
         public Dictionary<string, FeatureHook> FeatureByName = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, List<DecoderHook>> ByProduct = new(StringComparer.OrdinalIgnoreCase);
         public List<Type> EngineFileReaders = new();
+        public List<Type> InstallProbes = new();
     }
 
     private static Snapshot? _snapshot;
@@ -116,7 +117,31 @@ public static class HookCatalog
     /// unknown on either side constrains nothing -- a build that states no version is read by the
     /// newest decoder, and a decoder not yet checked against a real install declares no engine.
     /// </summary>
-    public static DecoderHook? Resolve(string product, string gameVersion, string engineVersion)
+    public static DecoderHook? Resolve(string product, string gameVersion, string engineVersion) =>
+        Resolve(product, gameVersion, engineVersion, string.Empty);
+
+    /// <summary>
+    /// The same rule with the install's engine family as a second identity: a product that
+    /// ships no decoder of its own is read by the decoder declared for its ENGINE (the
+    /// family name is a GameType member exactly like a product name), so an engine whose
+    /// every build is decoded one way needs one declaration, not one per title.
+    /// </summary>
+    public static DecoderHook? Resolve(string product, string gameVersion, string engineVersion, string engineFamily)
+    {
+        DecoderHook? byProduct = ResolveProduct(product, gameVersion, engineVersion);
+        if (byProduct is not null)
+        {
+            return byProduct;
+        }
+        string family = engineFamily ?? string.Empty;
+        if (family.Length == 0 || string.Equals(family, product, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        return ResolveProduct(family, gameVersion, engineVersion);
+    }
+
+    private static DecoderHook? ResolveProduct(string product, string gameVersion, string engineVersion)
     {
         string wantedGame = gameVersion ?? string.Empty;
         string wantedEngine = engineVersion ?? string.Empty;
@@ -156,6 +181,12 @@ public static class HookCatalog
     /// turn when the generic parse fails. See <see cref="InstallVersionReaderAttribute"/>.
     /// </summary>
     public static IReadOnlyList<Type> EngineFileReaders => Current().EngineFileReaders;
+
+    /// <summary>
+    /// Every class that can read the identity of an install built on another engine -- asked
+    /// alongside the generic Unity probe. See <see cref="InstallProbeAttribute"/>.
+    /// </summary>
+    public static IReadOnlyList<Type> InstallProbes => Current().InstallProbes;
 
     /// <summary>The implementation behind a hook id, decoder or feature alike.</summary>
     public static Type? TypeOf(string hookId)
@@ -209,6 +240,11 @@ public static class HookCatalog
                 if (attribute is InstallVersionReaderAttribute)
                 {
                     snapshot.EngineFileReaders.Add(type);
+                    break;
+                }
+                if (attribute is InstallProbeAttribute)
+                {
+                    snapshot.InstallProbes.Add(type);
                     break;
                 }
             }

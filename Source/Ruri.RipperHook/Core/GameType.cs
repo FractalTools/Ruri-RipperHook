@@ -13,6 +13,12 @@ namespace Ruri.RipperHook;
 /// StarRail ships no decoder yet and is still a real member: <c>Ruri.Tpk</c> joins a type tree
 /// dump's <see cref="Core.CustomEngineType"/> to this enum BY NAME, so the two spellings are
 /// one contract.
+///
+/// An ENGINE FAMILY is a member too: a build on an engine other than Unity publishes no
+/// productName-to-decoder join of its own, and its decoder reads every title of that engine
+/// unless a product-named decoder exists for the title (<c>HookCatalog.Resolve</c> asks the
+/// product first, the family second). The member name is the family string the install
+/// probe reports, spelled identically.
 /// </summary>
 public enum GameType
 {
@@ -28,4 +34,5 @@ public enum GameType
     KoikatsuSunshine,
     HoneyCome,
     SamabakeScramble,
+    UnrealEngine,
 }

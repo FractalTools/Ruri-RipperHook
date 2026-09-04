@@ -67,15 +67,17 @@ public static class RipperBlenderBridge
     }
 
     /// <summary>
-    /// What the players under <paramref name="gameRoot"/> say they are, as flat sextuples
-    /// (dataFolder, company, product, gameVersion, engineVersion, isProject). Reads two small
-    /// files per player and nothing else -- see <see cref="InstallProbe"/>.
+    /// What the players under <paramref name="gameRoot"/> say they are, as flat septuples
+    /// (dataFolder, company, product, gameVersion, engineVersion, engine, isProject). Reads two
+    /// small files per player and nothing else -- see <see cref="InstallProbe"/>; an install on
+    /// another engine is answered by that engine's own probe, which may need the source options
+    /// already stated (<see cref="SetSourceOptions"/>) to open its archives.
     /// </summary>
     public static string[] ReadInstall(string gameRoot)
     {
         List<PlayerIdentity> players = InstallProbe.Read(gameRoot);
         PlayerIdentity? project = InstallProbe.Project(gameRoot);
-        List<string> flat = new(players.Count * 6);
+        List<string> flat = new(players.Count * 7);
         foreach (PlayerIdentity player in players)
         {
             flat.Add(player.DataFolder);
@@ -83,6 +85,7 @@ public static class RipperBlenderBridge
             flat.Add(player.Product);
             flat.Add(player.GameVersion);
             flat.Add(player.EngineVersion);
+            flat.Add(player.Engine);
             flat.Add(project is not null && player.DataFolder == project.DataFolder ? "1" : "0");
         }
         return flat.ToArray();
@@ -90,10 +93,33 @@ public static class RipperBlenderBridge
 
     /// <summary>
     /// The decoder id this install is read through, or "" when none applies (a plain Unity build
-    /// needs no decoder). See <see cref="HookCatalog.Resolve"/>.
+    /// needs no decoder). See <see cref="HookCatalog.Resolve(string, string, string, string)"/>.
     /// </summary>
-    public static string ResolveDecoder(string product, string gameVersion, string engineVersion) =>
-        HookCatalog.Resolve(product, gameVersion, engineVersion)?.Id ?? string.Empty;
+    public static string ResolveDecoder(string product, string gameVersion, string engineVersion, string engineFamily) =>
+        HookCatalog.Resolve(product, gameVersion, engineVersion, engineFamily)?.Id ?? string.Empty;
+
+    /// <summary>
+    /// State how the install is to be READ beyond its folder, as flat name/value pairs: the
+    /// values a source needs before it can open its files (an archive key, an engine version,
+    /// a schema file). Stated before <see cref="Initialize"/>, <see cref="ReadInstall"/> or
+    /// <see cref="BuildCabMap"/>, and again whenever the host changes one. The kernel carries
+    /// them verbatim (<see cref="Data.Session.Options"/>); the decoder publishes which names it
+    /// reads as a dataset, so a host draws the form from that and never spells a name itself.
+    /// </summary>
+    public static void SetSourceOptions(string[] flatPairs)
+    {
+        ArgumentNullException.ThrowIfNull(flatPairs);
+        if (flatPairs.Length % 2 != 0)
+        {
+            throw new ArgumentException("Source options are name/value pairs; got an odd number of strings.", nameof(flatPairs));
+        }
+        Dictionary<string, string> options = new(StringComparer.Ordinal);
+        for (int index = 0; index < flatPairs.Length; index += 2)
+        {
+            options[flatPairs[index]] = flatPairs[index + 1] ?? string.Empty;
+        }
+        Data.Session.SetOptions(options);
+    }
 
     /// <summary>
     /// Open the session on ONE install through ONE decoder. The host states which install and

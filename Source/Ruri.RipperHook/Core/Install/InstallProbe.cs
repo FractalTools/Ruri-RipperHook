@@ -27,8 +27,18 @@ public sealed class PlayerIdentity
     /// <summary>PlayerSettings.bundleVersion -- the game's own version, "" when it states none.</summary>
     public required string GameVersion { get; init; }
 
-    /// <summary>The Unity version this player's serialized files state.</summary>
+    /// <summary>The engine version this player's own files state -- the Unity version for a Unity build.</summary>
     public required string EngineVersion { get; init; }
+
+    /// <summary>
+    /// The engine FAMILY this player runs on (<see cref="UnityEngineFamily"/> for a Unity build),
+    /// spelled as the <see cref="GameType"/> member a family-wide decoder declares. What a host
+    /// resolves a decoder by when the product itself declares none, and what selects the host's
+    /// engine-level panels.
+    /// </summary>
+    public required string Engine { get; init; }
+
+    public const string UnityEngineFamily = "Unity";
 }
 
 /// <summary>
@@ -50,6 +60,7 @@ public static class InstallProbe
     private const string DataSuffix = "_Data";
     private const string EngineSettingsName = "globalgamemanagers";
     private const string TryDecryptMethod = "TryDecrypt";
+    private const string ProbeMethod = "Probe";
     private const int PlayerSettingsClassID = 129;
     private const int MaxStringLength = 128;
 
@@ -70,7 +81,28 @@ public static class InstallProbe
                 players.Add(identity);
             }
         }
+        foreach (Type probe in HookCatalog.InstallProbes)
+        {
+            players.AddRange(ProbeOther(probe, gameRoot));
+        }
         return players;
+    }
+
+    /// <summary>
+    /// Ask ONE other engine's probe what it recognises under the folder. A probe that throws
+    /// on a folder that is not its engine's install is a probe bug, so that is not swallowed;
+    /// only the missing-method contract violation is named explicitly.
+    /// </summary>
+    private static IEnumerable<PlayerIdentity> ProbeOther(Type probe, string gameRoot)
+    {
+        MethodInfo method = probe.GetMethod(ProbeMethod, BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                $"[InstallProbe] {probe.FullName} declares [InstallProbe] but has no "
+                + $"public static IEnumerable<PlayerIdentity> {ProbeMethod}(string gameRoot).");
+        object? result = method.Invoke(null, new object[] { gameRoot });
+        return result as IEnumerable<PlayerIdentity>
+            ?? throw new InvalidOperationException(
+                $"[InstallProbe] {probe.FullName}.{ProbeMethod} must return IEnumerable<PlayerIdentity>.");
     }
 
     /// <summary>
@@ -81,11 +113,16 @@ public static class InstallProbe
     public static PlayerIdentity? Project(string gameRoot)
     {
         List<PlayerIdentity> players = Read(gameRoot);
-        if (players.Count <= 1)
+        List<PlayerIdentity> unity = players.FindAll(static player => player.Engine == PlayerIdentity.UnityEngineFamily);
+        if (unity.Count == 0)
         {
             return players.FirstOrDefault();
         }
-        return NamedByCompany(players) ?? PrefixOwner(players);
+        if (unity.Count == 1)
+        {
+            return unity[0];
+        }
+        return NamedByCompany(unity) ?? PrefixOwner(unity);
     }
 
     private static PlayerIdentity? ReadPlayer(string dataFolder)
@@ -152,6 +189,7 @@ public static class InstallProbe
             Product = texts[1],
             GameVersion = texts.Skip(2).FirstOrDefault(IsVersionShaped) ?? string.Empty,
             EngineVersion = file.Version.ToString(),
+            Engine = PlayerIdentity.UnityEngineFamily,
         };
     }
 
