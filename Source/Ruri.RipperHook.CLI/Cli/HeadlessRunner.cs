@@ -248,18 +248,6 @@ internal static class HeadlessRunner
                 return bundleStatus == SummaryStatus.Ok ? 0 : (rewritten.Converted > 0 ? 2 : 4);
             }
 
-            if (options.ExportGlbPath is { Length: > 0 } glbPath)
-            {
-                (int glbExported, int glbFailed) = Ruri.RipperHook.GlbExporter.GlbBatchExporter.ExportPrefabs(
-                    gameData, glbPath, options.Names);
-                SummaryStatus glbStatus = glbFailed == 0
-                    ? (glbExported > 0 ? SummaryStatus.Ok : SummaryStatus.Error)
-                    : SummaryStatus.Partial;
-                EmitJson(glbStatus, options, totalAssets, byType, glbExported, [], glbPath,
-                    glbExported == 0 ? "No prefab hierarchy matched --names for GLB export." : null);
-                return glbStatus == SummaryStatus.Ok ? 0 : (glbExported > 0 ? 2 : 4);
-            }
-
             if (options.ExportPath == null)
             {
                 EmitJson(SummaryStatus.Ok, options, totalAssets, byType, 0, [], null, null);

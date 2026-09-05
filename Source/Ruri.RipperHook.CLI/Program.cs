@@ -93,10 +93,6 @@ internal static class Program
         {
             config.EnabledHooks.Add("TypeFilterExport");
         }
-        if (opts.ExportGlbPath is { Length: > 0 })
-        {
-            config.EnabledHooks.Add("GlbExporter");
-        }
         Console.Error.WriteLine($"[Ruri.CLI] hooks: {string.Join(", ", config.EnabledHooks)}");
         Data.CoreDatasets.Register();
         Data.Session.SetOptions(ParseSourceOptions(opts.SourceOptions));

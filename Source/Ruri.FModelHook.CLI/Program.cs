@@ -13,7 +13,6 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Versions;
 using CUE4Parse_Conversion.Options;
 using Ruri.FModelHook;
-using Ruri.FModelHook.GlbSceneExport;
 using Ruri.FModelHook.ShaderDecompiler.Headless;
 using Ruri.FModelHook.ShaderDecompiler;
 using Ruri.Hook;
@@ -45,11 +44,6 @@ public static class Program
         if (!string.IsNullOrWhiteSpace(opts.DecompileOnly))
         {
             return RunDecompileOnly(opts.DecompileOnly!, opts);
-        }
-
-        if (opts.ExportMapDirect || opts.ListMaps)
-        {
-            return RunExportMapDirect(opts);
         }
 
         if (opts.ExportAssetPaths.Count > 0)
@@ -287,131 +281,6 @@ public static class Program
         catch (Exception ex)
         {
             HookLogger.LogFailure($"[ExportAsset] Crashed: {ex.GetType().FullName}: {ex.Message}{Environment.NewLine}{ex}");
-            return 1;
-        }
-    }
-
-    private static int RunExportMapDirect(CliOptions opts)
-    {
-        if (string.IsNullOrWhiteSpace(opts.GameDir) || !Directory.Exists(opts.GameDir))
-        {
-            HookLogger.LogFailure($"[GlbScene] --game-dir missing or not found: {opts.GameDir}");
-            return 2;
-        }
-        if (string.IsNullOrWhiteSpace(opts.UeVersion) || !Enum.TryParse<EGame>(opts.UeVersion, ignoreCase: true, out var game))
-        {
-            HookLogger.LogFailure($"[GlbScene] --ue-version invalid or missing (e.g. GAME_UE5_1). Got: '{opts.UeVersion}'");
-            return 2;
-        }
-        if (!opts.ListMaps && opts.MapFilters.Count == 0)
-        {
-            HookLogger.LogFailure("[GlbScene] No --map filter given. Use --list-maps to discover map paths, or pass --map <substring>.");
-            return 2;
-        }
-
-        try
-        {
-            var versions = new VersionContainer(game);
-            var provider = new DefaultFileProvider(opts.GameDir!, SearchOption.AllDirectories, isCaseInsensitive: true, versions: versions);
-            provider.Initialize();
-
-            string aesHex = string.IsNullOrWhiteSpace(opts.Aes)
-                ? "0x0000000000000000000000000000000000000000000000000000000000000000"
-                : opts.Aes!;
-            try
-            {
-                provider.SubmitKey(new FGuid(), new FAesKey(aesHex));
-            }
-            catch (Exception ex)
-            {
-                HookLogger.LogFailure($"[GlbScene] SubmitKey failed (continuing — paks may be unencrypted): {ex.Message}");
-            }
-            provider.PostMount();
-
-            if (!string.IsNullOrWhiteSpace(opts.MappingsPath))
-            {
-                if (!File.Exists(opts.MappingsPath))
-                {
-                    HookLogger.LogFailure($"[GlbScene] --mappings not found: {opts.MappingsPath}");
-                    return 2;
-                }
-                provider.MappingsContainer = new FileUsmapTypeMappingsProvider(opts.MappingsPath!);
-            }
-
-            try
-            {
-                provider.LoadVirtualPaths();
-            }
-            catch (Exception ex)
-            {
-                HookLogger.LogFailure($"[GlbScene] LoadVirtualPaths failed (continuing): {ex.Message}");
-            }
-
-            HookLogger.Log($"[GlbScene] Provider mounted. game={game} files={provider.Files.Count} mappings={(provider.MappingsContainer != null)}");
-
-            var umaps = provider.Files.Keys
-                .Where(key => key.EndsWith(".umap", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (opts.ListMaps)
-            {
-                HookLogger.Log($"[GlbScene] {umaps.Count} .umap package(s):");
-                foreach (var key in umaps)
-                {
-                    Console.WriteLine("  " + key);
-                }
-                return 0;
-            }
-
-            var selected = umaps
-                .Where(key => opts.MapFilters.Any(filter => key.Contains(filter, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-            if (selected.Count == 0)
-            {
-                HookLogger.LogFailure($"[GlbScene] No .umap matched --map filter(s): {string.Join(", ", opts.MapFilters)}");
-                return 2;
-            }
-
-            var options = UnrealExportOptions.Create(EMeshFormat.Gltf2, opts.WithMaterials);
-            string outputDirectory = string.IsNullOrWhiteSpace(opts.ExportOut)
-                ? Path.Combine(AppContext.BaseDirectory, "GlbSceneExport")
-                : opts.ExportOut!;
-            if (Directory.Exists(outputDirectory))
-            {
-                try { Directory.Delete(outputDirectory, recursive: true); }
-                catch (Exception ex) { HookLogger.LogFailure($"[GlbScene] could not clear output dir (continuing): {ex.Message}"); }
-            }
-            Directory.CreateDirectory(outputDirectory);
-
-            int exported = 0;
-            foreach (var key in selected)
-            {
-                try
-                {
-                    var package = provider.LoadPackage(provider.Files[key]);
-                    UWorld? world = package.GetExports().OfType<UWorld>().FirstOrDefault();
-                    if (world == null)
-                    {
-                        HookLogger.LogFailure($"[GlbScene] '{key}' has no UWorld export; skipped.");
-                        continue;
-                    }
-
-                    var exporter = new WorldGlbExporter(provider, options, HookLogger.Log, HookLogger.LogFailure);
-                    if (exporter.Export(world, key, outputDirectory, CancellationToken.None)) exported++;
-                }
-                catch (Exception ex)
-                {
-                    HookLogger.LogFailure($"[GlbScene] '{key}' failed: {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-
-            HookLogger.Log($"[GlbScene] Direct export finished. {exported}/{selected.Count} map(s) exported -> {outputDirectory}");
-            return exported > 0 ? 0 : 1;
-        }
-        catch (Exception ex)
-        {
-            HookLogger.LogFailure($"[GlbScene] Direct export crashed: {ex}");
             return 1;
         }
     }

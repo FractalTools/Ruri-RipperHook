@@ -21,9 +21,7 @@ internal sealed class CliOptions
     public string? ArchiveFilter { get; set; }
     public bool ExportOnly { get; set; }
 
-    public bool ExportMapDirect { get; set; }
-    public bool ListMaps { get; set; }
-    public string? GameDir { get; set; }    public string? MappingsPath { get; set; }    public string? UeVersion { get; set; }    public List<string> MapFilters { get; } = new();    public string? ExportOut { get; set; }    public string? Aes { get; set; }    public bool WithMaterials { get; set; }
+    public string? GameDir { get; set; }    public string? MappingsPath { get; set; }    public string? UeVersion { get; set; }    public string? ExportOut { get; set; }    public string? Aes { get; set; }
     public bool ExportUnity { get; set; }
     public string? UnityVersion { get; set; }    public List<string> PackageFilters { get; } = new();    public int? MaxPackages { get; set; }
     public static CliOptions Parse(string[] args)
@@ -106,12 +104,6 @@ internal sealed class CliOptions
                 case "--export-only":
                     opts.ExportOnly = true;
                     break;
-                case "--export-map-direct":
-                    opts.ExportMapDirect = true;
-                    break;
-                case "--list-maps":
-                    opts.ListMaps = true;
-                    break;
                 case "--game-dir":
                     if (i + 1 < args.Length) { opts.GameDir = args[i + 1]; i++; }
                     break;
@@ -121,17 +113,11 @@ internal sealed class CliOptions
                 case "--ue-version":
                     if (i + 1 < args.Length) { opts.UeVersion = args[i + 1]; i++; }
                     break;
-                case "--map":
-                    if (i + 1 < args.Length) { opts.MapFilters.Add(args[i + 1]); i++; }
-                    break;
                 case "--export-out":
                     if (i + 1 < args.Length) { opts.ExportOut = args[i + 1]; i++; }
                     break;
                 case "--aes":
                     if (i + 1 < args.Length) { opts.Aes = args[i + 1]; i++; }
-                    break;
-                case "--with-materials":
-                    opts.WithMaterials = true;
                     break;
                 case "--export-unity":
                     opts.ExportUnity = true;
@@ -197,20 +183,6 @@ internal sealed class CliOptions
         "                        existing <basename>.ushaderlib (sidecars must sit next to it).",
         "  --hook <id>           Enable a specific hook id (repeatable). Default: all discovered.",
         "  --list-hooks          Print discovered hook ids and exit.",
-        "",
-        "GLB scene export (settings-free, skips FModel boot):",
-        "  --export-map-direct   Export .umap maps as .glb scenes (World Partition aware).",
-        "  --game-dir PATH       Folder containing the game's Paks (or the game root).",
-        "  --mappings PATH       Local .usmap mappings file.",
-        "  --ue-version NAME     CUE4Parse EGame enum name, e.g. GAME_UE5_1 (required).",
-        "  --map SUBSTR          Only export maps whose package path contains SUBSTR",
-        "                        (repeatable). Omit to require --list-maps instead.",
-        "  --export-out DIR      Output directory for the .glb + materials/textures.",
-        "  --aes 0x...           Optional AES main key if the paks are encrypted.",
-        "  --with-materials      Also export material JSON + decoded texture PNGs (default:",
-        "                        geometry + material names only — bulk texture decode is",
-        "                        intermittently crash-prone on large worlds).",
-        "  --list-maps           With --export-map-direct: print every .umap and exit.",
         "",
         "UE -> Unity YAML export (settings-free, skips FModel boot):",
         "  --export-unity        Convert UE assets to Unity .asset + .meta YAML (牛头蛇尾).",

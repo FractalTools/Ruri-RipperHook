@@ -309,47 +309,6 @@ AR 经 `AssetRipper.Cpp2IL.Core` 把 `GameAssembly.dll` 变成**哑 assembly**�
 
 ---
 
-## 14. GlbExporter —— prefab/Animator 完整 GLB 导出
-
-`AssetRipperHook/GlbExporter/`（GameType 与 hook id 均为 `GlbExporter`）：替换 `GlbModelExporter.ExportModel`（PrimaryContent 路径）为 `RuriGlbSceneBuilder.Build` —— AR 原生 GLB 只有静态刚体网格。入口 = 选中的 prefab 或 Animator（GUI「Export selected (Converted)」经 `RipperPrimaryAssetExportService`；CLI `--export-glb <dir>` 自动启用）。**单 anim 不可用**：脱离 prefab/Avatar 无法还原 path_hash。
-
-- **数据全是 AR 处理后的纯净模型**：曲线路径已被 `PathChecksumCache`（Avatar TOS + 层级 CRC32 反查）在 EditorFormatProcessor 阶段还原；muscle 曲线已被 `AnimationClipConverter` 命名成标准属性串。导出端零重新解码。
-- **网格**：复用 AR internal `GlbSubMeshBuilder`（法线/切线/8UV/顶点色/Joints4/全拓扑 + 每 submesh 材质）。internal 访问 = csproj `InternalsAssemblyNames` + **`CompileUsingReferenceAssemblies=false`**（坑：SDK 对 ProjectReference 默认用 ref assembly 编译，会绕过 IgnoresAccessChecksToGenerator 重写的实现程序集 → CS0122）。
-- **材质**：`RuriGlbMaterialCache` 镜像 AR GlbLevelBuilder 的私有材质半边（TextureConverter→PNG→MemoryImage，缓存），纹理属性名表数据驱动扩到 URP/游戏命名（`_BaseMap`/`_AlbedoMap`/…）。
-- **morph**：blendshape 通道→glTF morph target（每通道取末帧），`extras.targetNames` 带名（Blender 直接出同名 shape key）；`blendShape.*` 曲线→morph 权重轨道（/100，按 SampleRate 采样）。
-- **★SharpGLTF 骨架铁律：`AddSkinnedMesh` 要求骨架树内节点名唯一**（`IsValidArmature`；报错只有空消息 `ArgumentException (Parameter 'joints')`）。游戏层级必有重名 → 建树时全局唯一化（`_1` 后缀）。joint 重复、零缩放、根节点进 joints 都合法；**跨两棵根才非法**。蒙皮索引按 joint 数组、动画绑定按 Unity 路径字典，改名无损。
-- **被 strip 的骨骼补全**：`SynthesizeMissingAvatarBones`（TOS 路径 + DefaultPose 本地 TRS，父先子后）从 Avatar 骨架长回 prefab 层级缺的骨骼 —— VibeStudio `ModelConverter.DeoptimizeTransformHierarchy` 的移植。
-
-### humanoid 烘焙（`HumanoidSolver/`）
-
-`AvatarMuscleReferential`（Avatar Axes：PreQ/PostQ/Sgn/Limit + TOS 路径 + 全 95 肌肉 DOF 表：55 身体含眼颚 + 40 手指经 `Hand.HandBoneIndex` finger-major）+ `HumanoidClipBaker`。Python (`RuriRipperImporter/humanoid_retarget.py`) 与 C# 两份实现同步。
-
-**解码链只有两步**（反编译 `mecanim::animation::EvaluateAvatarEnd` 结构性证明：拷贝 pose → `TwistSolve` → `MergeHumanToAvatarPose`，**没有第三种机制**）：
-
-1. **`FromAxes_2`（`kZYRoll`/`m_Type=1` 分支，25 根人体骨骼统一走）**：
-   `tx,ty,tz = tan(angle/2)`，`q = normalize(1, tx, ty+tx·tz, tz-tx·ty)`（w,x,y,z）。
-   该 `q` 经 `preQ * q * postQ⁻¹` **直接就是骨骼的绝对 local rotation** —— 不是 delta、不跟 rest 复合、不需要任何逐骨骼修正表。真值核对误差 0.000°。
-   - **`preQ` 与 `postQ` 不是同一个东西**（同一骨骼可差 60°~280°），公式必须非对称。用对称共轭 `postQ*q*postQ⁻¹` 会让整条腿关节方向全反。
-   - 旧的 `swing(Y,Z)*twist(X)` 组合轴角写法只在小角度近似成立，双轴同时非零时误差 5°~85°。
-   - **四肢 twist 角度（DOF 0）额外 ×0.5**（`_HALF_TWIST_BONES`/`HalfTwistBones`）：`Left/Right {Upper,Lower}{Arm,Leg}` 真实旋转角是预测值的精确一半，躯干/头颈精确 1:1。这条**取代**了旧的 forearm twist 取反补丁（那是在错公式上下的错药）。
-2. **`TwistSolve`**（`HumanFixTwist` 的唯一调用方）：8 对固定 `(parent, child, 系数)` **顺序固定** —— `(LeftLowerArm,LeftHand,m_ForeArmTwist)`、`(LeftUpperArm,LeftLowerArm,m_ArmTwist)`、右侧同构、腿部同构（`m_UpperLegTwist`/`m_LegTwist`），系数在 `Avatar.asset` 里（实测该 avatar 全为 0.5）。把 PARENT 自己的 twist 角按系数重新缩放，同时调整 CHILD 的 local 旋转以保持 CHILD **世界朝向不变**：`child_local_new = delta⁻¹ · child_local_old`（代数唯一解，不依赖 `SkeletonAlign` 的 SIMD 实现细节）。
-
-**根运动**：`RootT`/`RootQ` **不是 Hips 自己的变换**，而是 Unity 内部根参考系（IDA 确认 `RetargetTo`/`HumanComputeBoneMassCenter`/`HumanComputeOrientation`/`HumanSetupAxes`）：
-- `RootT` = 全身 25 根人体骨骼按 `m_HumanBoneMass` 加权的**质心**；`RootQ` = 由肩心/胯心构造的**朝向系**（`up=normalize(肩心-胯心)`、`right=normalize(肩宽+胯宽)`、`forward=cross(right,up)`）；两者都相对 Avatar rest pose 下同一套计算结果（`m_RootX`，`HumanSetupAxes` 只算一次）。
-- **解 Hips**：搭「假设 Hips 在原点、单位旋转」的 provisional FK（其余骨骼用各自当帧绝对 local rotation），算出 provisional 质心与朝向系，联立：`R = RootQ @ m_RootX.q @ 朝向(prov)⁻¹`，`T = RootT − R @ 质心(prov)`。朝向系公式对 avatar 自己 rest pose 复算与序列化 `m_RootX.q` 误差 0.00002°。
-- **运动提取开关**：`m_KeepOriginalPositionXZ`/`KeepOriginalPositionY`/`KeepOriginalOrientation`（`IMuscleClipInfo`，Python 侧 `m_AnimationClipSettings` 同名）。为 `false` 时该轴位移/yaw 本该提取到角色根节点、不属于 Hips；**没有独立 `MotionT`/`MotionQ` 曲线时 `RootT − MotionT` 退化成减 0，提取值会原样喂给 Hips → 位置单调发散**。修法：`body_transform()` 按三开关把该轴 RootT 分量清零（或 swing-twist 分解掉 RootQ 的 yaw），把清零那部分单独返回，由 `animation_builder.py`/`HumanoidClipBaker.BakeSynthesizedRootMotion` 烘到**骨架 OBJECT 自身**的 location/rotation_quaternion（而非任何 pose bone）。实测 Hips 位置误差 0.56(最大1.13)→**0.04**，旋转 4.4°→**2.5°**。
-- `body_transform()` 返回的就是 Hips 最终绝对 local transform，**调用方不再乘 hips rest 朝向** —— 与其余骨骼同一套「直接用、不复合 rest」契约。
-
-**残留**：`RightUpperArm` ~15°、`UpperArm_L`/`UpperLeg_L` 对参考 `.blend` ~85°/37°（这两根在 TwistSolve 8 对里**永远只当 parent**，故那轮修复对它们零增量）。已排除：固定每骨骼偏移（同骨骼 9 帧的偏移差 40°+，非常数）、循环相位未对齐（9×9 网格两两比对最低仍 75°~94°）、解码侧第三机制（已结构性排除）。**最可信未证假设**：参考 `.blend`（内嵌 `AutoSaveAnimUnity.py`，是流向 Unity 的 FBX 导出源头而非 clip 的下游产物，Rigify 骨架，还留有「删除烘焙隐藏帧」等历史补丁脚本）保存的动画可能不是这条 clip 的逐帧对应版本 —— 即问题在正向 FBX 导出/Unity 首次编码，不在本项目的解码。
-
-> **教训（五轮事故同指一件事）**：数值自洽（对称/连续/无 NaN）、单骨骼吻合、乃至「扩大到 15/18 根验证通过」都不能证明 humanoid 解算正确。**取真值的脚本本身要被审计**（曾有前后两版脚本一版打印 `cur`、一版打印 `delta`，混在一张表里得出「某些骨骼需要修正」的伪结论）；**公式接进真实调用点后要重核**（曾实现「除以 rest 再由调用方乘回」，代数上恒等于什么都没做，单测却通过）；**引擎语义靠 IDA 反编译确认，不靠拟合候选公式**；**只测单轴永远测不出多轴耦合的 bug**。
-
-**Endfield 事实**：全部角色 avatar 是 generic（名字带 `_genericAvatar`，无 Human）—— 身体动画 = 逐骨骼 generic 曲线，muscle 空间只有 Root/Motion 14 通道；humanoid 烘焙对 Endfield 正确休眠，将在真 Mecanim humanoid 数据上首次生效（届时核对 `HandBoneIndex[15]` finger-major 假设 —— 对抗审计置信 medium-high 的唯一遗留）。角色模型入口 = `…/prefabs/uimodels/chr_XXXX_<name>_uimodel.prefab`（1.3.3 共 29 个）。
-
-**CLI**：`--export-glb <dir>`（配 `--cab-map`+`--names` 闭包加载；`--names` 同时过滤要写的 prefab；**绝不删目标目录**，只加文件）。`GlbBatchExporter` 遍历 `MainAsset is PrefabHierarchyObject`（**注意 FQN**：现行 AR 的 `Processing.Prefabs` 版，别撞恢复版旧类，§9）。
-
----
-
 ## 15. FModelHook —— UE 着色器反编译（无头优先）
 
 `Source/Ruri.FModelHook` + `.CLI` + `.GUI`：把 UE `.ushaderbytecode` 归档反编译成带「用到它的材质球 + 材质符号」的 `.shader`。shader 内符号（UB 成员名/纹理名）真值矩阵在 [`Source/Ruri.ShaderDecompiler/UE_SYMBOL_SOURCES.md`](Source/Ruri.ShaderDecompiler/UE_SYMBOL_SOURCES.md)；本节只讲**材质链接**与入口。
@@ -366,7 +325,7 @@ AR 经 `AssetRipper.Cpp2IL.Core` 把 `GameAssembly.dll` 变成**哑 assembly**�
 
 UE 是 `GameType.UnrealEngine` 这一个解码器(`UnrealEngine_4.0`,按**引擎家族**认领:没有自己解码器的 UE 标题都走它),和 Endfield 一样进 cabmap→浏览→内存导入,只是容器是 CUE4Parse 的提供器、对象在 `GameBundleHook.CustomFilePreInitialize` 里被换成 AR 资产,后面的流水线不知道数据不是 Unity 的。
 
-- **依赖方向(钦定)**:内核 `Ruri.RipperHook` **不引用 CUE4Parse**;解码器整棵住 `Source/Ruri.FModelHook/FModelHook/UnityConverter/`(`Ruri.FModelHook.UnityConverter[.Converters|.TypeTree]`;同级平铺 `ShaderDecompiler/`、`GlbSceneExport/`、`Headless/`,不再有 Game/SBUE 分层;`FModelHook/` 只放 hook 代码,`Core/` 与 `EngineUbMetadata/` 留在项目根),FModelHook 引用 RipperHook。宿主按路径加载它:CLI `--module <dll>`、GUI `RuriRipperHook.json` 的 `Modules`、Blender 首选项 `Decoder Module DLL`;都汇到 `Bootstrap.LoadModule`(模块目录探测托管与原生依赖,`HookCatalog` 见到新程序集即失效重扫)。`HookCatalog.DeclareHost(属性类型)` 让每个宿主只列自己家族的解码器——同一个 FModelHook.dll 里 FModel 的 `UE_ShaderDecompiler` 与 RipperHook 的 `UnrealEngine_4.0` 互不串台。模块在 FModel 的 bin(`FModel/FModel/bin/<配置>/net10.0-windows/win-x64/Ruri.FModelHook.dll`,`CUE4Parse-Natives.dll` 放旁边);CI 的 FModelHook job 因此也 init AssetRipper 并带 `-p:PureRelease=true`。
+- **依赖方向(钦定)**:内核 `Ruri.RipperHook` **不引用 CUE4Parse**;解码器整棵住 `Source/Ruri.FModelHook/FModelHook/UnityConverter/`(`Ruri.FModelHook.UnityConverter[.Converters|.TypeTree]`;同级平铺 `ShaderDecompiler/`、`Headless/`,不再有 Game/SBUE 分层;`FModelHook/` 只放 hook 代码,`Core/` 与 `EngineUbMetadata/` 留在项目根),FModelHook 引用 RipperHook。宿主按路径加载它:CLI `--module <dll>`、GUI `RuriRipperHook.json` 的 `Modules`、Blender 首选项 `Decoder Module DLL`;都汇到 `Bootstrap.LoadModule`(模块目录探测托管与原生依赖,`HookCatalog` 见到新程序集即失效重扫)。`HookCatalog.DeclareHost(属性类型)` 让每个宿主只列自己家族的解码器——同一个 FModelHook.dll 里 FModel 的 `UE_ShaderDecompiler` 与 RipperHook 的 `UnrealEngine_4.0` 互不串台。模块在 FModel 的 bin(`FModel/FModel/bin/<配置>/net10.0-windows/win-x64/Ruri.FModelHook.dll`,`CUE4Parse-Natives.dll` 放旁边);CI 的 FModelHook job 因此也 init AssetRipper 并带 `-p:PureRelease=true`。
 - **身份与选项**:`[RipperInstallProbe]` 静态探针读 exe 与 DefaultGame.ini,报 `PlayerIdentity.Engine="UnrealEngine"`;**引擎版本读 exe 里编译进去的 Build.version 字面量**(UTF-16 `++UE5+Release-5.1-CL-23901901` / `++UE5+Release-5.1`,每个 UE 二进制含启动器都有,`UnrealInstall.BuildVersionLiteral` 16MB 窗口+256B 重叠扫描),不读版本资源(OniValley 5.1 的 Shipping exe 根本没有,厂商也可改写);字面量缺失(改名分支的自研引擎)⇒ schema 把 `unreal.engine` 标 required、面板常驻警告、挂载拒绝并说明;解码器解析先按 product 再按引擎家族。读取参数(AES/EGame/贴图平台/usmap/版本覆盖/额外 pak 目录/`unreal.codecs`)= 源选项,`--source-option name=value` / Blender 表单;解码器发 `unreal.settings.schema` 数据集,面板按它画,**代码不认识任何选项名**。
 - **数据流**:cabmap 一行=一个包(CAB 名=包路径,容器路径 `Assets/<包路径>`),依赖零解析取自 IoStore 容器头 `ImportedPackages`,ClassIds=导出类名经转换器表(`UnrealConverters.All`,按 usmap 父链匹配)映射。加载:`UnrealPackageLoader` 两道并行屏障——所有包先 Allocate(造空 AR 资产入 `UnrealAssetTable`,键=`GetPathName()`+槽位),再 Fill(引用一律可解),fileStack 留空。转换器:StaticMesh/SkeletalMesh/Skeleton/Texture/Material/AnimSequence/World,其余一切 → PropertyBag(MonoBehaviour+按类名的 MonoScript)。引擎中立建造器在 `Core/Conversion/`(Mesh 14 通道 Float32 单流,2019+ 蒙皮权重走通道 12/13;Clip 写编辑器曲线;Texture 行翻转;Material=Dummy Shader+SavedProperties,贴图属性声明 2D;PropertyBag 结构来自类型树)。坐标:Unity=(UE.y, UE.z, UE.x)/100,四元数同置换,UV v'=1-v,绕序按法线表决。
 - **类型树**:usmap → `UsmapTypeTreeBuilder`(与 Ruri.Tpk 链接同一份源)→ 运行期注册 lineage `"6"`(`CustomEngineType.UnrealEngine`),类名索引。⚠ 运行期把 tpk 的 `string` 改名成 `Utf8String`/`PropertyName`,喂 AR 的 `TypeTreeNodeStruct` 必须用 `TypeTreeNode.UnityTypeName`,否则每个字符串字段都被 AR 当成结构。`UnrealValueWriter` 按**字段形状**写值(指针/结构/字符串/数值),形状不合 ReportOnce,不抛。
