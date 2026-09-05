@@ -28,6 +28,13 @@ public sealed class TexturePixels
     public bool RepeatV { get; init; } = true;
 
     /// <summary>
+    /// The data's first row is the image's top row, the way most sources keep it; Unity keeps the
+    /// bottom row first. Stated true, the texture is registered with <see cref="TextureOrientation"/>
+    /// and exported as it is; stated false, the rows were already turned to Unity's order.
+    /// </summary>
+    public bool TopDown { get; init; }
+
+    /// <summary>
     /// Reverse the row order of a tightly packed <paramref name="bytesPerPixel"/> image in place.
     /// </summary>
     public static void FlipRows(byte[] data, int width, int height, int bytesPerPixel)
@@ -74,6 +81,10 @@ public static class TextureBuilder
         texture.Height_C28 = pixels.Height;
         texture.Format_C28E = pixels.Format;
         texture.ImageData_C28 = pixels.Data;
+        if (pixels.TopDown)
+        {
+            TextureOrientation.MarkTopDown(texture);
+        }
         if (texture.Has_CompleteImageSize_C28_Int32())
         {
             texture.CompleteImageSize_C28_Int32 = pixels.Data.Length;

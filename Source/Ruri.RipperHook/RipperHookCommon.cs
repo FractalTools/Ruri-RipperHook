@@ -24,7 +24,9 @@ public abstract class RipperHookCommon : RuriHook
 
     public override void Initialize()
     {
-        base.Initialize();        ProcessGameHooks();
+        base.Initialize();
+        RegisterModule(new AR.TextureOrientationHook());
+        ProcessGameHooks();
 
         var ripperHookAttr = GetType().GetCustomAttribute<RipperHookAttribute>();
         if (ripperHookAttr != null)

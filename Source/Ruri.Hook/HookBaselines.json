@@ -45,6 +45,7 @@
   "unoptimized": {
     "AssetRipper.Assets.Bundles.GameBundle::InitializeFromPaths(IEnumerable\u00601,AssetFactoryBase,FileSystem,IGameInitializer)": "58388187e16434e8",
     "AssetRipper.Assets.Collections.SerializedAssetCollection::ReadData(SerializedAssetCollection,SerializedFile,AssetFactoryBase)": "0a05bac5fe1c1380",
+    "AssetRipper.Export.Modules.Textures.TextureConverter::TryConvertToBitmap(ITexture2D,DirectBitmap\u0026)": "17c069d35d4b2982",
     "AssetRipper.Export.PrimaryContent.Models.GlbModelExporter::ExportModel(IEnumerable\u00601,String,Boolean,FileSystem)": "f1a466852197427e",
     "AssetRipper.Export.UnityProjects.ExportHandler::GetProcessors()": "9ef001a09abba73a",
     "AssetRipper.Export.UnityProjects.MetaPtr::CreateMissingReference(Int32,AssetType)": "3198fb92a16870d0",
