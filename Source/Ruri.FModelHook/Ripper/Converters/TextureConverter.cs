@@ -107,6 +107,24 @@ public sealed class TextureConverter : IUnrealConverter
             return;
         }
 
+        if (platform == ETexturePlatform.DesktopMobile
+            && source.PlatformData is { FirstMipToSerialize: >= 0, VTData: { } tiles }
+            && VirtualTiles.Format(tiles) is { } layerFormat
+            && Cooked.TryGetValue(layerFormat, out Layout lifted)
+            && VirtualTiles.Aligned(tiles, lifted.BlockWidth, lifted.BlockHeight))
+        {
+            int width = checked((int)tiles.Width);
+            int height = checked((int)tiles.Height);
+            int expected = Blocks(width, lifted.BlockWidth) * Blocks(height, lifted.BlockHeight) * lifted.BlockBytes;
+            UnrealFileProvider provider = conversion.Shared.Provider;
+            string packagePath = conversion.PackagePath;
+            string exportName = export.Name;
+            TextureBuilder.Defer(texture, Shape(source, width, height, lifted.Format, []), expected, conversion.Package.Space.Deferred,
+                () => LiftedTiles(provider, packagePath, exportName, lifted));
+            return;
+        }
+
+        Logger.Verbose(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} ({export.ExportType}, {source.Format}, {source.PlatformData.Mips.Length} mips, first mip {(source.GetFirstMip() is { } first ? first.SizeX + "x" + first.SizeY : "none")}) decodes rather than defers.");
         CTexture? decoded = source.Decode(platform);
         if (decoded is null)
         {
@@ -134,12 +152,7 @@ public sealed class TextureConverter : IUnrealConverter
     /// </summary>
     private static byte[] CookedBytes(UnrealFileProvider provider, string packagePath, string exportName, int expected)
     {
-        if (provider.LoadUncached(provider[packagePath]) is not AbstractUePackage package)
-        {
-            throw new InvalidDataException($"[Unreal] {packagePath} is not a package with exports.");
-        }
-        int index = package.GetExportIndex(exportName);
-        if (index < 0 || package.ExportsLazy[index].Value is not UTexture2D source || source.GetFirstMip() is not { BulkData.Data: { } raw })
+        if (Reload(provider, packagePath, exportName).GetFirstMip() is not { BulkData.Data: { } raw })
         {
             throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} no longer yields its first mip.");
         }
@@ -148,6 +161,31 @@ public sealed class TextureConverter : IUnrealConverter
             throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} holds {raw.Length} bytes, {expected} were reserved.");
         }
         return raw.Length == expected ? raw : raw[..expected];
+    }
+
+    /// <summary>The first mip of a virtual texture lifted from its tiles when the exporter asks (see <see cref="VirtualTiles"/>).</summary>
+    private static byte[] LiftedTiles(UnrealFileProvider provider, string packagePath, string exportName, Layout layout)
+    {
+        if (Reload(provider, packagePath, exportName).PlatformData?.VTData is not { } tiles)
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} no longer carries virtual texture data.");
+        }
+        return VirtualTiles.Lift(tiles, layout.BlockWidth, layout.BlockHeight, layout.BlockBytes);
+    }
+
+    /// <summary>The texture read again through a package instance nobody keeps.</summary>
+    private static UTexture2D Reload(UnrealFileProvider provider, string packagePath, string exportName)
+    {
+        if (provider.LoadUncached(provider[packagePath]) is not AbstractUePackage package)
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath} is not a package with exports.");
+        }
+        int index = package.GetExportIndex(exportName);
+        if (index < 0 || package.ExportsLazy[index].Value is not UTexture2D source)
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} is no longer a Texture2D export.");
+        }
+        return source;
     }
 
     private static int Blocks(int texels, int block) => (texels + block - 1) / block;

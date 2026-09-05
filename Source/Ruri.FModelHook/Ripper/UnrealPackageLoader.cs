@@ -158,6 +158,10 @@ public static class UnrealPackageLoader
             $"[Unreal] packages={admitted.Count} failedPackages={failedPackages} assets={table.Count} failedExports={failedExports} "
             + $"schema={schemaMs}ms allocate={allocateMs}ms fill={phase.ElapsedMilliseconds}ms "
             + $"heapAtStart={startHeap >> 20}MB heapAfterSchema={schemaHeap >> 20}MB heapAfterAllocate={allocateHeap >> 20}MB heapAfterFill={GC.GetTotalMemory(true) >> 20}MB peakWorkingSet={Process.GetCurrentProcess().PeakWorkingSet64 >> 20}MB");
+        if (Logger.AllowVerbose)
+        {
+            Logger.Verbose(LogCategory.Import, "[Unreal] " + UnrealLoadProfile.Summarize(space));
+        }
     }
 
     private static List<GameFile> Admitted(DefaultFileProvider provider, IEnumerable<string> archivePaths, Func<string, bool>? include)
