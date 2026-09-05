@@ -73,12 +73,10 @@ public sealed class TextureConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.Texture2D];
 
-    public bool Handles(UObject export) => export is UTexture2D;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        ITexture2D texture = conversion.Package.Create<ITexture2D>(ClassIDType.Texture2D, export.Name, conversion.UnityPath(export));
-        conversion.Register(export, texture);
+        ITexture2D texture = conversion.Package.Create<ITexture2D>(ClassIDType.Texture2D, header.Name.Text, conversion.UnityPath(header));
+        conversion.Register(header, texture);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)

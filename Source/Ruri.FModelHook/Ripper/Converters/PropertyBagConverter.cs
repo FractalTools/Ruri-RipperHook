@@ -1,6 +1,7 @@
 using AssetRipper.Import.Structure.Assembly.Serializable;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_114;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using Ruri.FModelHook.Ripper.TypeTree;
 using Ruri.RipperHook.Conversion;
@@ -23,14 +24,12 @@ public sealed class PropertyBagConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.MonoBehaviour];
 
-    public bool Handles(UObject export) => true;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        IMonoBehaviour behaviour = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, export.Name, conversion.UnityPath(export));
-        behaviour.ScriptP = conversion.Shared.Script(export.ExportType);
+        IMonoBehaviour behaviour = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, header.Name.Text, conversion.UnityPath(header));
+        behaviour.ScriptP = conversion.Shared.Script(UnrealConversion.ClassOf(header));
         behaviour.Enabled = 1;
-        conversion.Register(export, behaviour);
+        conversion.Register(header, behaviour);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)

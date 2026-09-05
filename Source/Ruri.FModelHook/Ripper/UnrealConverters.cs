@@ -11,11 +11,13 @@ namespace Ruri.FModelHook.Ripper;
 
 /// <summary>
 /// One Unreal class family turned into Unity assets. A converter runs in two phases over one
-/// package on one thread: <see cref="Allocate"/> creates every Unity asset the export becomes
-/// and registers each under the export so other packages can point at it; <see cref="Fill"/>
-/// writes the data once every package's assets exist, so a reference to any export anywhere in
-/// the closure resolves. The class names it handles are matched through the reflection schema's
-/// super chain, so a subclass the converter never heard of still lands here.
+/// package on one thread: <see cref="Allocate"/> creates every Unity asset another package may
+/// point at from the export's header alone -- name, class, outer, nothing deserialized -- and
+/// registers each under the export; <see cref="Fill"/> reads the export once every package's
+/// assets exist, so a reference to any export anywhere in the closure resolves, and creates
+/// the assets only the export itself refers to. The class names it handles are matched
+/// through the reflection schema's super chain, so a subclass the converter never heard of
+/// still lands here.
 /// </summary>
 public interface IUnrealConverter
 {
@@ -25,9 +27,7 @@ public interface IUnrealConverter
     /// <summary>The Unity classes an export of this family becomes -- what a cabmap lists for it.</summary>
     IReadOnlyList<ClassIDType> Produces { get; }
 
-    bool Handles(UObject export);
-
-    void Allocate(UnrealConversion conversion, UObject export);
+    void Allocate(UnrealConversion conversion, ResolvedObject header);
 
     void Fill(UnrealConversion conversion, UObject export);
 }
@@ -45,6 +45,9 @@ public sealed class UnrealAssetTable
 
     public void Register(UObject export, string slot, IUnityObjectBase asset) =>
         assets[(Key(export), slot)] = asset;
+
+    public void Register(ResolvedObject header, string slot, IUnityObjectBase asset) =>
+        assets[(Key(header), slot)] = asset;
 
     public IUnityObjectBase? Find(UObject export, string slot = PrimarySlot) =>
         assets.TryGetValue((Key(export), slot), out IUnityObjectBase? asset) ? asset : null;
@@ -71,11 +74,10 @@ public sealed class UnrealAssetTable
 /// <summary>The per-package conversion state a converter works against.</summary>
 public sealed class UnrealConversion
 {
-    public UnrealConversion(ConvertedSpace space, ConvertedPackage package, IPackage source, string packagePath, UnrealAssetTable table, SourceBasis basis, UnrealLoadShared shared)
+    public UnrealConversion(ConvertedSpace space, ConvertedPackage package, string packagePath, UnrealAssetTable table, SourceBasis basis, UnrealLoadShared shared)
     {
         Space = space;
         Package = package;
-        Source = source;
         PackagePath = packagePath;
         Table = table;
         Basis = basis;
@@ -88,8 +90,6 @@ public sealed class UnrealConversion
     public ConvertedSpace Space { get; }
 
     public ConvertedPackage Package { get; }
-
-    public IPackage Source { get; }
 
     /// <summary>The package's provider path with its extension ("Project/Content/A/B.uasset").</summary>
     public string PackagePath { get; }
@@ -104,17 +104,33 @@ public sealed class UnrealConversion
     /// The Unity export path of an asset the package yields: the package's own path under the
     /// Assets root, with the export's name when the package holds more than its main asset.
     /// </summary>
-    public string UnityPath(UObject export, string? suffix = null)
+    public string UnityPath(UObject export, string? suffix = null) => UnityPath(export.Name, suffix);
+
+    public string UnityPath(ResolvedObject header, string? suffix = null) => UnityPath(header.Name.Text, suffix);
+
+    private string UnityPath(string exportName, string? suffix)
     {
         string stem = UnrealPaths.UnityStem(PackagePath);
         string leaf = Path.GetFileName(stem);
-        bool isMain = string.Equals(export.Name, leaf, StringComparison.OrdinalIgnoreCase);
-        string path = isMain ? stem : stem + "/" + export.Name;
+        bool isMain = string.Equals(exportName, leaf, StringComparison.OrdinalIgnoreCase);
+        string path = isMain ? stem : stem + "/" + exportName;
         return suffix is null ? path : path + suffix;
     }
 
+    /// <summary>The name of an object's class, empty when the class import did not resolve.</summary>
+    public static string ClassName(ResolvedObject? @class) => @class?.Name.Text ?? string.Empty;
+
+    /// <summary>The class name an export was allocated under: its class import's name.</summary>
+    public static string ClassOf(ResolvedObject header) => ClassName(header.Class);
+
+    /// <summary>Whether the export's class is <paramref name="ancestor"/> or descends from it in the reflection schema.</summary>
+    public bool IsA(ResolvedObject header, string ancestor) => UnrealConverters.IsA(ClassOf(header), ancestor, Shared.Provider.MappingsForGame);
+
     public void Register(UObject export, IUnityObjectBase asset, string slot = UnrealAssetTable.PrimarySlot) =>
         Table.Register(export, slot, asset);
+
+    public void Register(ResolvedObject header, IUnityObjectBase asset, string slot = UnrealAssetTable.PrimarySlot) =>
+        Table.Register(header, slot, asset);
 }
 
 /// <summary>Unreal package paths and the Unity paths they export under.</summary>
@@ -164,18 +180,6 @@ public static class UnrealConverters
 
     public static IReadOnlyList<IUnrealConverter> Converters => All;
 
-    public static IUnrealConverter For(UObject export)
-    {
-        foreach (IUnrealConverter converter in All)
-        {
-            if (converter.Handles(export))
-            {
-                return converter;
-            }
-        }
-        return Fallback;
-    }
-
     /// <summary>
     /// The converter for a class known only by name -- what the scan has before any object is
     /// loaded. The reflection schema's super chain decides ancestry; without a schema an exact
@@ -188,24 +192,46 @@ public static class UnrealConverters
 
     public static void ForgetClassNames() => ByClassName.Clear();
 
+    /// <summary>Whether <paramref name="className"/> is <paramref name="ancestor"/> or descends from it in the reflection schema.</summary>
+    public static bool IsA(string className, string ancestor, TypeMappings? mappings)
+    {
+        foreach (string name in Ancestry(className, mappings))
+        {
+            if (string.Equals(name, ancestor, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static IUnrealConverter Resolve(string className, TypeMappings? mappings)
     {
-        string? cursor = className;
-        HashSet<string> seen = new(StringComparer.Ordinal);
-        while (cursor is not null && seen.Add(cursor))
+        foreach (string name in Ancestry(className, mappings))
         {
             foreach (IUnrealConverter converter in All)
             {
                 foreach (string handled in converter.ClassNames)
                 {
-                    if (string.Equals(handled, cursor, StringComparison.Ordinal))
+                    if (string.Equals(handled, name, StringComparison.Ordinal))
                     {
                         return converter;
                     }
                 }
             }
-            cursor = mappings is not null && mappings.Types.TryGetValue(cursor, out Struct? schema) ? schema.SuperType : null;
         }
         return Fallback;
+    }
+
+    /// <summary>The class and its ancestors, nearest first, as far as the reflection schema names them.</summary>
+    private static IEnumerable<string> Ancestry(string className, TypeMappings? mappings)
+    {
+        string? cursor = className;
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        while (cursor is not null && cursor.Length > 0 && seen.Add(cursor))
+        {
+            yield return cursor;
+            cursor = mappings is not null && mappings.Types.TryGetValue(cursor, out Struct? schema) ? schema.SuperType : null;
+        }
     }
 }

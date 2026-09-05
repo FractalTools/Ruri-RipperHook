@@ -1,5 +1,6 @@
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_1;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Animation;
 using CUE4Parse_Conversion.Dto;
@@ -19,12 +20,10 @@ public sealed class SkeletonConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.GameObject, ClassIDType.Transform];
 
-    public bool Handles(UObject export) => export is USkeleton;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        IGameObject root = conversion.Hierarchy.Node(export.Name, null, Vector3.Zero, Quaternion.Identity, Vector3.One, conversion.UnityPath(export));
-        conversion.Register(export, root);
+        IGameObject root = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One, conversion.UnityPath(header));
+        conversion.Register(header, root);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)

@@ -4,6 +4,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_4;
 using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Extensions;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Objects.Core.Math;
@@ -28,23 +29,12 @@ public sealed class SkeletalMeshConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.Mesh, ClassIDType.GameObject, ClassIDType.SkinnedMeshRenderer];
 
-    public bool Handles(UObject export) => export is USkeletalMesh;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        if (export is not USkeletalMesh source || source.LODModels is not { Length: > 0 } lods)
-        {
-            return;
-        }
-        for (int lod = 0; lod < lods.Length; lod++)
-        {
-            string name = lod == 0 ? export.Name : export.Name + "_LOD" + lod;
-            IMesh mesh = conversion.Package.Create<IMesh>(ClassIDType.Mesh, name, conversion.UnityPath(export, lod == 0 ? null : "_LOD" + lod));
-            conversion.Register(export, mesh, StaticMeshConverter.LodSlot(lod));
-        }
-        IGameObject model = conversion.Hierarchy.Node(export.Name, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
-            conversion.UnityPath(export, StaticMeshConverter.PrefabSuffix));
-        conversion.Register(export, model, PrefabSlot);
+        conversion.Register(header, conversion.Package.Create<IMesh>(ClassIDType.Mesh, header.Name.Text, conversion.UnityPath(header)));
+        IGameObject model = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
+            conversion.UnityPath(header, StaticMeshConverter.PrefabSuffix));
+        conversion.Register(header, model, PrefabSlot);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)
@@ -60,10 +50,7 @@ public sealed class SkeletalMeshConverter : IUnrealConverter
         for (int lod = 0; lod < dto.LODs.Count; lod++)
         {
             MeshLodDto<SkinnedMeshVertex> lodDto = dto.LODs[lod];
-            if (conversion.Table.Find<IMesh>(export, StaticMeshConverter.LodSlot((int)lodDto.SourceLodIndex)) is not { } mesh)
-            {
-                continue;
-            }
+            IMesh mesh = StaticMeshConverter.Lod(conversion, export, (int)lodDto.SourceLodIndex);
             MeshGeometry geometry = UnrealMeshGeometry.FromLod(mesh.Name.String, dto, lodDto, conversion.Basis,
                 static vertex => vertex.Influences, rig.BindPoses, rig.Names, rootBoneName);
             MeshBuilder.Fill(mesh, geometry);

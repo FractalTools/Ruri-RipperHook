@@ -2,6 +2,7 @@ using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Serializable;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_114;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
@@ -26,31 +27,12 @@ public sealed class DataTableConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.MonoBehaviour];
 
-    public bool Handles(UObject export) => export is UDataTable;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        if (export is not UDataTable table)
-        {
-            return;
-        }
-        IMonoBehaviour bag = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, export.Name, conversion.UnityPath(export));
-        bag.ScriptP = conversion.Shared.Script(export.ExportType);
+        IMonoBehaviour bag = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, header.Name.Text, conversion.UnityPath(header));
+        bag.ScriptP = conversion.Shared.Script(UnrealConversion.ClassOf(header));
         bag.Enabled = 1;
-        conversion.Register(export, bag);
-        if (table.RowStructName is not { Length: > 0 } rowStruct)
-        {
-            Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} names no row struct; its {table.RowMap.Count} rows stay unconverted.");
-            return;
-        }
-        foreach (FName rowName in table.RowMap.Keys)
-        {
-            string name = rowName.Text;
-            IMonoBehaviour row = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, name, conversion.UnityPath(export, RowSeparator + FileSafe(name)));
-            row.ScriptP = conversion.Shared.Script(rowStruct);
-            row.Enabled = 1;
-            conversion.Register(export, row, name);
-        }
+        conversion.Register(header, bag);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)
@@ -66,15 +48,17 @@ public sealed class DataTableConverter : IUnrealConverter
         }
         if (table.RowStructName is not { Length: > 0 } rowStruct)
         {
+            Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} names no row struct; its {table.RowMap.Count} rows stay unconverted.");
             return;
         }
         bool nativeRows = UnrealTypeTree.IsNative(table.GetOrDefault<FPackageIndex?>("RowStruct")?.ResolvedObject);
         foreach ((FName rowName, FStructFallback rowValue) in table.RowMap)
         {
-            if (conversion.Table.Find<IMonoBehaviour>(export, rowName.Text) is not { } row)
-            {
-                continue;
-            }
+            string name = rowName.Text;
+            IMonoBehaviour row = conversion.Package.Create<IMonoBehaviour>(ClassIDType.MonoBehaviour, name, conversion.UnityPath(export, RowSeparator + FileSafe(name)));
+            row.ScriptP = conversion.Shared.Script(rowStruct);
+            row.Enabled = 1;
+            conversion.Register(export, row, name);
             if (PropertyBagConverter.Bag(rowStruct, nativeRows, rowValue.Properties, conversion, row.Collection) is { } structure)
             {
                 row.Structure = structure;

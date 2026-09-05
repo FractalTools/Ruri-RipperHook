@@ -2,6 +2,7 @@ using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Material;
 using CUE4Parse.UE4.Assets.Exports.Texture;
@@ -21,6 +22,7 @@ namespace Ruri.FModelHook.Ripper.Converters;
 public sealed class MaterialConverter : IUnrealConverter
 {
     public const string ShaderSlot = "shader";
+    private const string RootClassName = "Material";
     public const string BlendModeName = "BlendMode";
     public const string ShadingModelName = "ShadingModel";
     public const string TwoSidedName = "TwoSided";
@@ -30,17 +32,15 @@ public sealed class MaterialConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.Material, ClassIDType.Shader];
 
-    public bool Handles(UObject export) => export is UMaterialInterface;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        if (export is UMaterial)
+        if (conversion.IsA(header, RootClassName))
         {
-            IShader shader = conversion.Package.Create<IShader>(ClassIDType.Shader, export.Name, conversion.UnityPath(export));
-            conversion.Register(export, shader, ShaderSlot);
+            IShader shader = conversion.Package.Create<IShader>(ClassIDType.Shader, header.Name.Text, conversion.UnityPath(header));
+            conversion.Register(header, shader, ShaderSlot);
         }
-        IMaterial material = conversion.Package.Create<IMaterial>(ClassIDType.Material, export.Name, conversion.UnityPath(export));
-        conversion.Register(export, material);
+        IMaterial material = conversion.Package.Create<IMaterial>(ClassIDType.Material, header.Name.Text, conversion.UnityPath(header));
+        conversion.Register(header, material);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)

@@ -1,6 +1,7 @@
 using AssetRipper.Import.Logging;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_74;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Animation;
 using CUE4Parse.UE4.Objects.Core.Math;
@@ -25,12 +26,10 @@ public sealed class AnimSequenceConverter : IUnrealConverter
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.AnimationClip];
 
-    public bool Handles(UObject export) => export is UAnimSequence;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        IAnimationClip clip = conversion.Package.Create<IAnimationClip>(ClassIDType.AnimationClip, export.Name, conversion.UnityPath(export));
-        conversion.Register(export, clip);
+        IAnimationClip clip = conversion.Package.Create<IAnimationClip>(ClassIDType.AnimationClip, header.Name.Text, conversion.UnityPath(header));
+        conversion.Register(header, clip);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)

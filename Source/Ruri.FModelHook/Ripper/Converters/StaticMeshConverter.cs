@@ -2,6 +2,7 @@ using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_1;
 using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_43;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
 using CUE4Parse.UE4.Objects.UObject;
@@ -21,30 +22,37 @@ public sealed class StaticMeshConverter : IUnrealConverter
 {
     public const string PrefabSlot = "prefab";
     public const string PrefabSuffix = "_model";
+    private const string LodSuffix = "_LOD";
 
     public IReadOnlyList<string> ClassNames { get; } = ["StaticMesh"];
 
     public IReadOnlyList<ClassIDType> Produces { get; } = [ClassIDType.Mesh, ClassIDType.GameObject, ClassIDType.MeshRenderer];
 
-    public bool Handles(UObject export) => export is UStaticMesh;
-
     public static string LodSlot(int lod) => lod == 0 ? UnrealAssetTable.PrimarySlot : "lod" + lod;
 
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        if (export is not UStaticMesh source || source.RenderData?.LODs is not { Length: > 0 } lods)
+        conversion.Register(header, conversion.Package.Create<IMesh>(ClassIDType.Mesh, header.Name.Text, conversion.UnityPath(header)));
+        IGameObject model = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
+            conversion.UnityPath(header, PrefabSuffix));
+        conversion.Register(header, model, PrefabSlot);
+    }
+
+    /// <summary>
+    /// The mesh of one LOD: the first was allocated with the export, since other packages point
+    /// at it; the rest are created as their data is read, since only the export's own prefab
+    /// refers to them.
+    /// </summary>
+    public static IMesh Lod(UnrealConversion conversion, UObject export, int lod)
+    {
+        if (conversion.Table.Find<IMesh>(export, LodSlot(lod)) is { } existing)
         {
-            return;
+            return existing;
         }
-        for (int lod = 0; lod < lods.Length; lod++)
-        {
-            string name = lod == 0 ? export.Name : export.Name + "_LOD" + lod;
-            IMesh mesh = conversion.Package.Create<IMesh>(ClassIDType.Mesh, name, conversion.UnityPath(export, lod == 0 ? null : "_LOD" + lod));
-            conversion.Register(export, mesh, LodSlot(lod));
-        }
-        IGameObject model = conversion.Hierarchy.Node(export.Name, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
-            conversion.UnityPath(export, PrefabSuffix));
-        conversion.Register(export, model, PrefabSlot);
+        string suffix = LodSuffix + lod;
+        IMesh mesh = conversion.Package.Create<IMesh>(ClassIDType.Mesh, export.Name + suffix, conversion.UnityPath(export, suffix));
+        conversion.Register(export, mesh, LodSlot(lod));
+        return mesh;
     }
 
     public void Fill(UnrealConversion conversion, UObject export)
@@ -58,10 +66,7 @@ public sealed class StaticMeshConverter : IUnrealConverter
         for (int lod = 0; lod < dto.LODs.Count; lod++)
         {
             MeshLodDto<MeshVertex> lodDto = dto.LODs[lod];
-            if (conversion.Table.Find<IMesh>(export, LodSlot((int)lodDto.SourceLodIndex)) is not { } mesh)
-            {
-                continue;
-            }
+            IMesh mesh = Lod(conversion, export, (int)lodDto.SourceLodIndex);
             MeshGeometry geometry = UnrealMeshGeometry.FromLod(mesh.Name.String, dto, lodDto, conversion.Basis, null, null, null, null);
             MeshBuilder.Fill(mesh, geometry);
         }

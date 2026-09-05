@@ -4,11 +4,13 @@ using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated.Classes.ClassID_115;
 using CUE4Parse.FileProvider;
 using CUE4Parse.FileProvider.Objects;
+using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.VirtualFileSystem;
-using Ruri.RipperHook.Conversion;
 using Ruri.FModelHook.Ripper.TypeTree;
+using Ruri.RipperHook.Conversion;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
@@ -49,12 +51,13 @@ public sealed class UnrealLoadShared
 
 /// <summary>
 /// The load path: the packages AssetRipper asked for become Unity assets in two barriers --
-/// every package allocates its assets in parallel, then every package fills them in parallel,
-/// so a reference from any export to any other resolves without ordering the packages. What
-/// counts as "asked for" is the archive files handed over, narrowed by the include predicate
-/// the cabmap closure states. A package is let go the moment its assets are filled: the
-/// provider forgets it and the loader drops its objects, so what stays in memory is the Unity
-/// side plus whatever a package still being filled reaches into.
+/// every package allocates its assets in parallel from its export map alone, then every
+/// package is deserialized and filled in parallel, so a reference from any export to any other
+/// resolves without ordering the packages and no package's data is held before its own fill.
+/// What counts as "asked for" is the archive files handed over, narrowed by the include
+/// predicate the cabmap closure states. A package is let go the moment its assets are filled:
+/// the provider forgets it and the loader drops its objects, so what stays in memory is the
+/// Unity side plus whatever a package still being filled reaches into.
 /// </summary>
 public static class UnrealPackageLoader
 {
@@ -94,35 +97,43 @@ public static class UnrealPackageLoader
 
         phase.Restart();
         UnrealConversion?[] conversions = new UnrealConversion?[admitted.Count];
-        List<UObject>[] exports = new List<UObject>[admitted.Count];
         int failedPackages = 0;
+        TypeMappings? mappings = provider.MappingsForGame;
         Parallel.For(0, admitted.Count, index =>
         {
             GameFile file = admitted[index];
             try
             {
-                IPackage package = provider.LoadPackage(file);
-                UnrealConversion conversion = new(space, space.Package(file.Path), package, file.Path, table, Basis, shared);
-                List<UObject> loaded = new();
-                foreach (UObject export in package.GetExports())
+                if (provider.LoadPackage(file) is not AbstractUePackage package)
                 {
-                    loaded.Add(export);
+                    throw new InvalidDataException("not a package with an export map");
+                }
+                UnrealConversion conversion = new(space, space.Package(file.Path), file.Path, table, Basis, shared);
+                for (int slot = 0; slot < package.ExportMapLength; slot++)
+                {
+                    if (package.ResolvePackageIndex(new FPackageIndex(package, slot + 1)) is not { } header)
+                    {
+                        continue;
+                    }
                     try
                     {
-                        UnrealConverters.For(export).Allocate(conversion, export);
+                        UnrealConverters.ForClassName(UnrealConversion.ClassOf(header), mappings).Allocate(conversion, header);
                     }
                     catch (Exception exception)
                     {
-                        Logger.Warning(LogCategory.Import, $"[Unreal] Allocate {file.Path}:{export.Name} ({export.ExportType}): {exception.GetType().Name}: {exception.Message}");
+                        Logger.Warning(LogCategory.Import, $"[Unreal] Allocate {file.Path}:{header.Name} ({UnrealConversion.ClassOf(header)}): {exception.GetType().Name}: {exception.Message}");
                     }
                 }
                 conversions[index] = conversion;
-                exports[index] = loaded;
             }
             catch (Exception exception)
             {
                 Interlocked.Increment(ref failedPackages);
                 Logger.Warning(LogCategory.Import, $"[Unreal] Load {file.Path}: {exception.GetType().Name}: {exception.Message}");
+            }
+            finally
+            {
+                provider.Forget(file.Path);
             }
         });
         long allocateMs = phase.ElapsedMilliseconds;
@@ -137,21 +148,32 @@ public static class UnrealPackageLoader
             {
                 return;
             }
-            foreach (UObject export in exports[index])
+            GameFile file = admitted[index];
+            try
             {
-                try
+                foreach (UObject export in provider.LoadPackage(file).GetExports())
                 {
-                    UnrealConverters.For(export).Fill(conversion, export);
-                }
-                catch (Exception exception)
-                {
-                    Interlocked.Increment(ref failedExports);
-                    Logger.Warning(LogCategory.Import, $"[Unreal] Fill {conversion.PackagePath}:{export.Name} ({export.ExportType}): {exception.GetType().Name}: {exception.Message}");
+                    try
+                    {
+                        UnrealConverters.ForClassName(UnrealConversion.ClassName(export.Class), mappings).Fill(conversion, export);
+                    }
+                    catch (Exception exception)
+                    {
+                        Interlocked.Increment(ref failedExports);
+                        Logger.Warning(LogCategory.Import, $"[Unreal] Fill {conversion.PackagePath}:{export.Name} ({export.ExportType}): {exception.GetType().Name}: {exception.Message}");
+                    }
                 }
             }
-            conversions[index] = null;
-            exports[index] = null!;
-            provider.Forget(admitted[index].Path);
+            catch (Exception exception)
+            {
+                Interlocked.Increment(ref failedPackages);
+                Logger.Warning(LogCategory.Import, $"[Unreal] Read {file.Path}: {exception.GetType().Name}: {exception.Message}");
+            }
+            finally
+            {
+                conversions[index] = null;
+                provider.Forget(file.Path);
+            }
         });
         provider.Release();
         Logger.Info(LogCategory.Import,

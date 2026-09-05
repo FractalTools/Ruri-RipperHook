@@ -7,6 +7,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_4;
 using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Extensions;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
@@ -39,12 +40,10 @@ public sealed class WorldConverter : IUnrealConverter
     public IReadOnlyList<ClassIDType> Produces { get; } =
         [ClassIDType.GameObject, ClassIDType.Transform, ClassIDType.MeshRenderer, ClassIDType.Light, ClassIDType.RenderSettings];
 
-    public bool Handles(UObject export) => export is UWorld;
-
-    public void Allocate(UnrealConversion conversion, UObject export)
+    public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        IRenderSettings settings = conversion.Package.Create<IRenderSettings>(ClassIDType.RenderSettings, export.Name, null);
-        conversion.Register(export, settings);
+        IRenderSettings settings = conversion.Package.Create<IRenderSettings>(ClassIDType.RenderSettings, header.Name.Text, null);
+        conversion.Register(header, settings);
     }
 
     public void Fill(UnrealConversion conversion, UObject export)
