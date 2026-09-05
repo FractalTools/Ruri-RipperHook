@@ -256,8 +256,8 @@ public sealed class UsmapTypeTreeBuilder
         }
         if (kind == "MapProperty")
         {
-            ushort? key = type.InnerType is null ? null : TypeNode(type.InnerType, "first", depth + 1);
-            ushort? value = type.ValueType is null ? null : TypeNode(type.ValueType, "second", depth + 1);
+            ushort? key = type.InnerType is null ? null : TypeNode(type.InnerType, MapKeyName, depth + 1);
+            ushort? value = type.ValueType is null ? null : TypeNode(type.ValueType, MapValueName, depth + 1);
             return key is null || value is null ? null : Map(nodeName, key.Value, value.Value);
         }
         if (kind == "StructProperty")
@@ -333,13 +333,22 @@ public sealed class UsmapTypeTreeBuilder
         return Node("vector", nodeName, [array], TransferMetaFlags.NoTransferFlags);
     }
 
+    /// <summary>
+    /// A map is a list of entries, each a structure of the key and the value -- the shape a
+    /// Unity script gives a dictionary it serializes -- rather than Unity's own map node: the
+    /// interpreter fills a structure's fields, while a pair's halves cannot be written to.
+    /// </summary>
     private ushort Map(string nodeName, ushort key, ushort value)
     {
-        ushort pair = Node("pair", "data", [key, value], TransferMetaFlags.NoTransferFlags);
+        ushort entry = Node(MapEntryTypeName, "data", [key, value], TransferMetaFlags.NoTransferFlags);
         ushort size = Leaf("SInt32", "size", TransferMetaFlags.NoTransferFlags);
-        ushort array = Node("Array", "Array", [size, pair], TransferMetaFlags.AlignBytes);
-        return Node("map", nodeName, [array], TransferMetaFlags.NoTransferFlags);
+        ushort array = Node("Array", "Array", [size, entry], TransferMetaFlags.AlignBytes);
+        return Node("vector", nodeName, [array], TransferMetaFlags.NoTransferFlags);
     }
+
+    public const string MapEntryTypeName = "MapEntry";
+    public const string MapKeyName = "first";
+    public const string MapValueName = "second";
 
     private ushort Node(string typeName, string nodeName, IReadOnlyList<ushort> children, TransferMetaFlags flags)
     {

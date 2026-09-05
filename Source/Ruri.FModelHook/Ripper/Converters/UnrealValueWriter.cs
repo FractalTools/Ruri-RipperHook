@@ -7,6 +7,7 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.UObject;
+using Ruri.FModelHook.Ripper.TypeTree;
 using Ruri.RipperHook.Conversion;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -122,6 +123,19 @@ public sealed class UnrealValueWriter
     private IUnityObjectBase? Target(FPackageIndex pointer) =>
         pointer.ResolvedObject is null ? null : table.Find(pointer.ResolvedObject);
 
+    /// <summary>One map entry into the entry structure the schema states a map as: the key into its first field, the value into its second.</summary>
+    private void WriteEntry(StructureWriter entryWriter, KeyValuePair<object?, object?> entry)
+    {
+        if (entryWriter.TryField(UsmapTypeTreeBuilder.MapKeyName, out int key))
+        {
+            Write(entryWriter, key, entry.Key);
+        }
+        if (entryWriter.TryField(UsmapTypeTreeBuilder.MapValueName, out int value))
+        {
+            Write(entryWriter, value, entry.Value);
+        }
+    }
+
     private void WriteStruct(StructureWriter nested, IUStruct structValue)
     {
         if (structValue is FStructFallback fallback)
@@ -161,10 +175,20 @@ public sealed class UnrealValueWriter
                     elements.Add(element.GenericValue);
                 }
                 break;
-            case UScriptMap:
-                return;
+            case UScriptMap map:
+                foreach ((FPropertyTagType key, FPropertyTagType? entry) in map.Properties)
+                {
+                    elements.Add(new KeyValuePair<object?, object?>(key.GenericValue, entry?.GenericValue));
+                }
+                break;
             case string:
                 elements.Add(value);
+                break;
+            case IDictionary dictionary:
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    elements.Add(new KeyValuePair<object?, object?>(entry.Key, entry.Value));
+                }
                 break;
             case IEnumerable enumerable:
                 foreach (object? element in enumerable)
@@ -204,6 +228,7 @@ public sealed class UnrealValueWriter
                 {
                     case FScriptStruct scriptStruct: WriteStruct(elementWriter, scriptStruct.StructType); break;
                     case FStructFallback fallback: WriteProperties(elementWriter, fallback.Properties); break;
+                    case KeyValuePair<object?, object?> entry: WriteEntry(elementWriter, entry); break;
                     default: WriteNative(elementWriter, element); break;
                 }
             }
