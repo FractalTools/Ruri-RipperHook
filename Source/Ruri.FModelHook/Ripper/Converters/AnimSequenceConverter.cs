@@ -98,18 +98,20 @@ public sealed class AnimSequenceConverter : IUnrealConverter
             }
             tracks.Add(new ClipTrack { Path = rest.Path, Positions = positions, Rotations = rotations, Scales = scales });
         }
-        ClipBuilder.Fill(clip, sampleRate, frameCount, tracks, [], Tolerance(source, conversion.Basis));
+        float toleranceScale = UnrealSourceOptions.AnimationToleranceValue();
+        ClipBuilder.Fill(clip, sampleRate, frameCount, tracks, [], toleranceScale > 0f ? Tolerance(source, conversion.Basis, toleranceScale) : null);
     }
 
     /// <summary>
     /// The precision the sequence was compressed at, as the tolerance its written curves keep:
     /// the ACL codec that compressed it states an error threshold and the virtual vertex distance
     /// that threshold is measured at (UAnimBoneCompressionCodec_ACLBase), so a key is dropped
-    /// only where the played curve stays within the displacement the game itself accepted. A
-    /// codec property the cooked object leaves unstated holds its class default, which is what
-    /// an unstated property means. A sequence compressed by anything else keeps every sample.
+    /// only where the played curve stays within the displacement the game itself accepted,
+    /// scaled by the stated multiple. A codec property the cooked object leaves unstated holds
+    /// its class default, which is what an unstated property means. A sequence compressed by
+    /// anything else keeps every sample.
     /// </summary>
-    private static ClipTolerance? Tolerance(UAnimSequence source, SourceBasis basis)
+    private static ClipTolerance? Tolerance(UAnimSequence source, SourceBasis basis, float scale)
     {
         if (source.BoneCompressionSettings?.Load<UAnimBoneCompressionSettings>() is not { } settings
             || settings.GetCodec(source.BoneCodecDDCHandle ?? string.Empty) is not { } codec
@@ -119,8 +121,9 @@ public sealed class AnimSequenceConverter : IUnrealConverter
         }
         float threshold = codec.GetOrDefault("ErrorThreshold", AclErrorThresholdCentimetres);
         float vertexDistance = codec.GetOrDefault("DefaultVirtualVertexDistance", AclVirtualVertexDistanceCentimetres);
-        float displacement = threshold * basis.UnitScale;
-        float angular = threshold / vertexDistance;
+        Logger.Verbose(LogCategory.Import, $"[Unreal] {source.Name}: {codec.ExportType} '{codec.Name}' threshold {threshold} cm at {vertexDistance} cm, tolerance x{scale}; stated {string.Join(", ", codec.Properties.Select(static property => property.Name.Text + "=" + property.Tag?.GenericValue))}.");
+        float displacement = threshold * basis.UnitScale * scale;
+        float angular = threshold / vertexDistance * scale;
         return new ClipTolerance(displacement, angular, angular, displacement);
     }
 

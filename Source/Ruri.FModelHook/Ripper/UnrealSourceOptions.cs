@@ -28,6 +28,7 @@ public static class UnrealSourceOptions
     public const string ReadShaderMaps = "unreal.read.shadermaps";
     public const string Codecs = "unreal.codecs";
     public const string AnimationSampleRate = "unreal.animation.samplerate";
+    public const string AnimationTolerance = "unreal.animation.tolerance";
 
     public const char EntrySeparator = ';';
     public const char ValueSeparator = '=';
@@ -66,7 +67,22 @@ public static class UnrealSourceOptions
             "The folder holding the native codecs (Oodle, zlib-ng, Detex) archives and textures are decoded with. Empty reads the '.data' folder beside the kernel."),
         new(AnimationSampleRate, KindText, "0", string.Empty,
             "Frames per second animation clips are sampled at. 0 keeps every sequence's own target frame rate (a build may state 1920); a lower rate resamples the decoded tracks and shrinks the clips."),
+        new(AnimationTolerance, KindText, "1", string.Empty,
+            "How far a written animation curve may stray from the decoded samples, as a multiple of the error threshold the sequence's own codec compressed it at. 1 keeps every curve within the game's own precision (the decoded samples themselves carry that much quantization error, so it fits them closely); a larger multiple drops more keys; 0 keeps every sample."),
     ];
+
+    /// <summary>The stated curve tolerance as a multiple of the codec's own error threshold, zero keeping every sample; text that is not a number is an error naming the option.</summary>
+    public static float AnimationToleranceValue()
+    {
+        string value = Text(AnimationTolerance);
+        if (value.Length == 0)
+        {
+            return 1f;
+        }
+        return float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float scale) && scale >= 0f
+            ? scale
+            : throw new FormatException($"[Unreal] '{AnimationTolerance}' must be a non-negative multiple of the codec's error threshold (0 keeps every sample); got '{value}'.");
+    }
 
     /// <summary>The stated animation sample rate, or zero for "each sequence's own"; text that is not a number is an error naming the option.</summary>
     public static float AnimationSampleRateValue()
