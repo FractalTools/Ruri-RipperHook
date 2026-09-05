@@ -4,22 +4,48 @@ using Ruri.ShaderTools.Spirv.Analysis;
 namespace Ruri.FModelHook.ShaderDecompiler.Semantics;
 
 /// <summary>
-/// Which texture channels reach which fragment outputs, and the discard test, in one SPIR-V
-/// pixel shader: a backward walk from every store into an output location over the value
-/// graph, per vector component, down to the image sampling instructions and the descriptor
-/// binding each one samples. Components are tracked exactly through extraction, construction,
-/// shuffling and insertion; every other instruction passes the union of its operands on, a
-/// function-local variable carries the union of everything stored to it, and a call carries
-/// the union of its callee's returns and its arguments. Cycles through phi nodes settle by
-/// repeating the walk until no output set grows.
+/// Which texture channels and which uniform-buffer lanes reach which fragment outputs, and
+/// the discard test, in one SPIR-V pixel shader: a backward walk from every store into an
+/// output location over the value graph, per vector component, down to the image sampling
+/// instructions and the descriptor binding each one samples, and down to the loads out of
+/// uniform blocks and the byte each one reads. Components are tracked exactly through
+/// extraction, construction, shuffling and insertion; every other instruction passes the
+/// union of its operands on, a function-local variable carries the union of everything stored
+/// to it, and a call carries the union of its callee's returns and its arguments. Cycles
+/// through phi nodes settle by repeating the walk until no output set grows.
 /// </summary>
 internal sealed class SpirvTaint
 {
-    public readonly record struct Source(int Binding, int Channel);
+    public enum SourceKind
+    {
+        Texture,
+        Uniform,
+    }
+
+    /// <summary>
+    /// One channel of one sampled texture binding, or one 32-bit lane of one uniform block:
+    /// <see cref="Offset"/> is the byte offset of the 16-byte register the lane sits in and
+    /// <see cref="Channel"/> the lane within it, the way a constant buffer is laid out.
+    /// </summary>
+    public readonly record struct Source(SourceKind Kind, int Binding, int Channel, int Offset)
+    {
+        public static Source Texture(int binding, int channel) => new(SourceKind.Texture, binding, channel, -1);
+
+        public static Source Uniform(int binding, int byteOffset) => new(SourceKind.Uniform, binding, byteOffset % RegisterBytes / LaneBytes, byteOffset - byteOffset % RegisterBytes);
+
+        public bool IsTexture => Kind == SourceKind.Texture;
+
+        public bool IsUniform => Kind == SourceKind.Uniform;
+
+        /// <summary>The byte offset of the lane itself, for a uniform source.</summary>
+        public int LaneOffset => Offset + Channel * LaneBytes;
+    }
 
     private const uint UndefinedComponent = 0xFFFFFFFF;
     private const int SampleWidth = 4;
     private const int Rounds = 4;
+    private const int RegisterBytes = 16;
+    private const int LaneBytes = 4;
     private static readonly HashSet<Source> Nothing = new();
 
     private readonly SpirvModule module;
@@ -27,6 +53,8 @@ internal sealed class SpirvTaint
     private readonly ModuleShape shape;
     private readonly Dictionary<uint, uint> resultTypes = new();
     private readonly Dictionary<uint, int> outputLocations = new();
+    private readonly Dictionary<(uint Struct, uint Member), int> memberOffsets = new();
+    private readonly Dictionary<uint, int> scalarBytes = new();
     private readonly Dictionary<uint, List<(uint Value, int? Component)>> variableStores = new();
     private readonly Dictionary<uint, List<uint>> functionReturns = new();
     private readonly List<(uint Variable, int? Component, uint Value)> outputStores = new();
@@ -45,10 +73,10 @@ internal sealed class SpirvTaint
         shape = ModuleShape.Build(module);
     }
 
-    /// <summary>Per output location, per component, the texture channels that reach it.</summary>
+    /// <summary>Per output location, per component, the sources that reach it.</summary>
     public IReadOnlyDictionary<int, HashSet<Source>[]> Outputs => outputs;
 
-    /// <summary>The texture channels that decide whether the fragment is discarded.</summary>
+    /// <summary>The sources that decide whether the fragment is discarded.</summary>
     public IReadOnlySet<Source> Discard => discard;
 
     public static SpirvTaint Analyze(byte[] spirv)
@@ -75,6 +103,16 @@ internal sealed class SpirvTaint
             {
                 case SpvOpCode.OpDecorate when words.Length >= 4 && words[2] == Decoration.Location:
                     locations[words[1]] = (int)words[3];
+                    break;
+                case SpvOpCode.OpMemberDecorate when words.Length >= 5 && words[3] == Decoration.Offset:
+                    memberOffsets[(words[1], words[2])] = (int)words[4];
+                    break;
+                case SpvOpCode.OpTypeFloat when words.Length >= 3:
+                case SpvOpCode.OpTypeInt when words.Length >= 3:
+                    scalarBytes[words[1]] = (int)(words[2] / 8);
+                    break;
+                case SpvOpCode.OpTypeBool when words.Length >= 2:
+                    scalarBytes[words[1]] = LaneBytes;
                     break;
                 case SpvOpCode.OpVariable when words.Length >= 4 && words[3] == StorageClass.Output && locations.TryGetValue(words[2], out int location):
                     outputLocations[words[2]] = location;
@@ -383,10 +421,19 @@ internal sealed class SpirvTaint
         return flows;
     }
 
+    /// <summary>A load out of a uniform block is the lanes it reads; out of a function-local variable, the union of what was stored there.</summary>
     private HashSet<Source>[] Loaded(uint pointer, int width)
     {
         (uint variable, int? component) = ResolvePointer(pointer);
-        if (variable == 0 || !variableStores.TryGetValue(variable, out List<(uint Value, int? Component)>? stores))
+        if (variable == 0)
+        {
+            return Empty(width);
+        }
+        if (UniformBinding(variable) is { } binding)
+        {
+            return UniformLanes(pointer, binding, width);
+        }
+        if (!variableStores.TryGetValue(variable, out List<(uint Value, int? Component)>? stores))
         {
             return Empty(width);
         }
@@ -421,6 +468,115 @@ internal sealed class SpirvTaint
             }
         }
         return result;
+    }
+
+    /// <summary>The binding of a variable that is a uniform block, else null.</summary>
+    private int? UniformBinding(uint variable)
+    {
+        if (!shape.VariablePointerTypes.TryGetValue(variable, out uint pointerType)
+            || !shape.PointerTypes.TryGetValue(pointerType, out (uint StorageClass, uint TypeId) pointee)
+            || pointee.StorageClass != StorageClass.Uniform
+            || !shape.SetBindingById.TryGetValue(variable, out (int? Set, int? Binding) binding))
+        {
+            return null;
+        }
+        return binding.Binding;
+    }
+
+    /// <summary>
+    /// The lanes a load of <paramref name="width"/> components reads, walking the access chain
+    /// with the block's own layout: member offsets, array strides, vector components. A chain
+    /// with an index the module does not state as a constant reads no lane anyone can name.
+    /// </summary>
+    private HashSet<Source>[] UniformLanes(uint pointer, int binding, int width)
+    {
+        HashSet<Source>[] result = Fresh(Math.Max(width, 1));
+        if (UniformOffset(pointer) is not (int offset, uint type))
+        {
+            return result;
+        }
+        int laneBytes = ComponentBytes(type);
+        for (int component = 0; component < result.Length; component++)
+        {
+            result[component].Add(Source.Uniform(binding, offset + component * laneBytes));
+        }
+        return result;
+    }
+
+    private (int Offset, uint Type)? UniformOffset(uint pointer)
+    {
+        SpirvInstruction? definition = definitions.DefinitionOf(pointer);
+        if (definition is null)
+        {
+            return null;
+        }
+        Span<uint> words = definition.Words;
+        switch (definition.OpCode)
+        {
+            case SpvOpCode.OpVariable:
+                return shape.VariablePointerTypes.TryGetValue(words[2], out uint pointerType) && shape.PointerTypes.TryGetValue(pointerType, out (uint StorageClass, uint TypeId) pointee)
+                    ? (0, pointee.TypeId)
+                    : null;
+            case SpvOpCode.OpAccessChain:
+            case SpvOpCode.OpInBoundsAccessChain:
+            {
+                if (UniformOffset(words[3]) is not (int offset, uint type))
+                {
+                    return null;
+                }
+                for (int i = 4; i < words.Length; i++)
+                {
+                    if (!shape.Constants.TryGetValue(words[i], out uint index))
+                    {
+                        return null;
+                    }
+                    if (shape.StructMembers.TryGetValue(type, out uint[]? members))
+                    {
+                        if (index >= members.Length || !memberOffsets.TryGetValue((type, index), out int memberOffset))
+                        {
+                            return null;
+                        }
+                        offset += memberOffset;
+                        type = members[index];
+                    }
+                    else if (shape.ArrayTypes.TryGetValue(type, out (uint ElementTypeId, uint LengthId) array))
+                    {
+                        if (!shape.ArrayStrides.TryGetValue(type, out uint stride))
+                        {
+                            return null;
+                        }
+                        offset += (int)(index * stride);
+                        type = array.ElementTypeId;
+                    }
+                    else if (shape.VectorShapes.TryGetValue(type, out (uint ComponentTypeId, uint ComponentCount) vector))
+                    {
+                        offset += (int)index * ComponentBytes(vector.ComponentTypeId);
+                        type = vector.ComponentTypeId;
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+                return (offset, type);
+            }
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>The bytes one component of a type takes: the scalar's own width, a vector's component's, else a lane.</summary>
+    private int ComponentBytes(uint type)
+    {
+        if (scalarBytes.TryGetValue(type, out int bytes))
+        {
+            return bytes;
+        }
+        if (shape.VectorShapes.TryGetValue(type, out (uint ComponentTypeId, uint ComponentCount) vector) && scalarBytes.TryGetValue(vector.ComponentTypeId, out bytes))
+        {
+            return bytes;
+        }
+        return LaneBytes;
     }
 
     /// <summary>The descriptor binding behind a sampled image or image operand, through the combine and the load that carried it.</summary>
@@ -468,13 +624,13 @@ internal sealed class SpirvTaint
         {
             for (int channel = 0; channel < SampleWidth; channel++)
             {
-                result[0].Add(new Source(binding, channel));
+                result[0].Add(Source.Texture(binding, channel));
             }
             return result;
         }
         for (int channel = 0; channel < result.Length && channel < SampleWidth; channel++)
         {
-            result[channel].Add(new Source(binding, channel));
+            result[channel].Add(Source.Texture(binding, channel));
         }
         return result;
     }

@@ -8,7 +8,7 @@ namespace Ruri.FModelHook.ShaderDecompiler;
 
 internal enum UeMaterialPreshaderVersion
 {
-    Ue51 = 51,    Ue54 = 54,    Ue57 = 57,}
+    Ue51 = 51,    Ue54 = 54,    Ue55 = 55,}
 
 internal static class MaterialConstantBufferReader
 {
@@ -22,6 +22,9 @@ internal static class MaterialConstantBufferReader
 
     public static readonly Dictionary<string, Dictionary<string, string>> EvaluatedCbufferParams = new(StringComparer.Ordinal);
 
+    /// <summary>Per material, every preshader-filled field with the program that computes it, at its absolute byte offset in the buffer.</summary>
+    public static readonly Dictionary<string, List<PreshaderField>> EvaluatedCbufferFields = new(StringComparer.Ordinal);
+
     private static void ResetMaterialTables(string materialPath)
     {
         if (string.IsNullOrEmpty(materialPath)) return;
@@ -29,6 +32,105 @@ internal static class MaterialConstantBufferReader
         EvaluatedCbufferOffsets.Remove(materialPath);
         EvaluatedCbufferPrograms.Remove(materialPath);
         EvaluatedCbufferParams.Remove(materialPath);
+        EvaluatedCbufferFields.Remove(materialPath);
+    }
+
+    /// <summary>
+    /// The names of every numeric parameter a preshader program reads, walking the program
+    /// by each opcode's operand size the way the evaluator does; a program with an opcode
+    /// the evaluator does not know is walked up to it.
+    /// </summary>
+    private static IReadOnlyList<string> ReferencedParameters(byte[] data, uint offset, uint size, JsonElement parameters)
+    {
+        List<string> names = new();
+        int n = checked((int)size);
+        int dataStart = checked((int)offset);
+        if (dataStart < 0 || dataStart > data.Length) return names;
+        if (dataStart + n > data.Length) n = data.Length - dataStart;
+        int i = 0;
+        while (i < n)
+        {
+            byte op = TranslateOpcode(data[dataStart + i]);
+            i++;
+            switch (op)
+            {
+                case 2:
+                {
+                    if (i >= n) return names;
+                    int valueBytes = data[dataStart + i] switch { 1 => 4, 2 => 8, 3 => 12, 4 => 16, _ => -1 };
+                    if (valueBytes < 0) return names;
+                    i += 1 + valueBytes;
+                    break;
+                }
+                case 3:
+                {
+                    if (i + 2 > n) return names;
+                    ushort idx = BitConverter.ToUInt16(data, dataStart + i);
+                    i += 2;
+                    if (idx < parameters.GetArrayLength() && ParseMaterialParameterInfo(parameters[idx]) is { } info && !string.IsNullOrEmpty(info.Name) && !names.Contains(info.Name))
+                    {
+                        names.Add(info.Name);
+                    }
+                    break;
+                }
+                case 36:
+                    i += 5;
+                    break;
+                case 38:
+                case 39:
+                    i += 11;
+                    break;
+                case 40:
+                case 41:
+                    i += 22;
+                    break;
+                case 42:
+                    i += 15;
+                    break;
+                case <= 37:
+                    break;
+                default:
+                    return names;
+            }
+        }
+        return names;
+    }
+
+    private static void RecordField(string? materialPath, PreshaderField field)
+    {
+        if (string.IsNullOrEmpty(materialPath)) return;
+        if (!EvaluatedCbufferFields.TryGetValue(materialPath, out List<PreshaderField>? fields))
+        {
+            EvaluatedCbufferFields[materialPath] = fields = new List<PreshaderField>();
+        }
+        fields.Add(field);
+    }
+
+    /// <summary>
+    /// A field's value for the given numeric parameters -- the same parameter array the
+    /// expression set carries, with any parameter's <c>Value</c> replaced by what a material
+    /// instance sets it to -- computed by the field's own preshader program.
+    /// </summary>
+    public static float[]? Evaluate(JsonElement uniformExpressionSet, PreshaderField field, JsonElement numericParameters)
+    {
+        if (!uniformExpressionSet.TryGetProperty("UniformPreshaderData", out JsonElement uniformPreshaderData)
+            || uniformPreshaderData.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+        string? encodedData = ReadString(uniformPreshaderData, "Data");
+        if (string.IsNullOrWhiteSpace(encodedData))
+        {
+            return null;
+        }
+        List<float[]>? stackValues = TryEvaluatePreshaderStack(Convert.FromBase64String(encodedData), field.OpcodeOffset, field.OpcodeSize, numericParameters);
+        if (stackValues == null)
+        {
+            return null;
+        }
+        return field.NumFields == 1 ? stackValues[^1]
+            : stackValues.Count == field.NumFields ? stackValues[field.FieldSlot]
+            : null;
     }
 
     private static void RecordParams(string materialPath, JsonElement parameters)
@@ -92,7 +194,7 @@ internal static class MaterialConstantBufferReader
 
             case UeMaterialPreshaderVersion.Ue54:
                 if (raw <= 42) return raw;                if (raw == 43) return 255;                if (raw <= 54) return (byte)(raw - 1);                return 255;
-            case UeMaterialPreshaderVersion.Ue57:
+            case UeMaterialPreshaderVersion.Ue55:
                 if (raw <= 8) return raw;                if (raw == 9) return 255;                if (raw <= 43) return (byte)(raw - 1);                if (raw == 44) return 255;                if (raw <= 55) return (byte)(raw - 2);                return 255;        }
         return raw;
     }
@@ -244,6 +346,7 @@ internal static class MaterialConstantBufferReader
                 {
                     string memberName = RegisterUniqueName(seenNames, baseName, byteOffset);
                     RecordEvaluated(materialPath, memberName, rows, evaluated, byteOffset - preshaderBufferStart, opcodeProgram);
+                    RecordField(materialPath, new PreshaderField(memberName, byteOffset, rows, opcodeOffset, opcodeSize, checked((int)fieldSlot), checked((int)numFields), opcodeProgram, ReferencedParameters(opcodeData, opcodeOffset, opcodeSize, uniformNumericParameters)));
                     for (int comp = 1; comp < rows; comp++) seenOffsets.Add(byteOffset + comp * 4);
                     AddVectorMember(vectorParams, memberName, byteOffset, rows, ShaderParamType.Float);
                     break;
@@ -252,6 +355,7 @@ internal static class MaterialConstantBufferReader
                 {
                     string memberName = RegisterUniqueName(seenNames, baseName, byteOffset);
                     RecordEvaluated(materialPath, memberName, rows, evaluated, byteOffset - preshaderBufferStart, opcodeProgram);
+                    RecordField(materialPath, new PreshaderField(memberName, byteOffset, rows, opcodeOffset, opcodeSize, checked((int)fieldSlot), checked((int)numFields), opcodeProgram, ReferencedParameters(opcodeData, opcodeOffset, opcodeSize, uniformNumericParameters)));
                     for (int comp = 1; comp < rows; comp++) seenOffsets.Add(byteOffset + comp * 4);
                     AddVectorMember(vectorParams, memberName, byteOffset, rows, ShaderParamType.Int);
                     break;
@@ -260,6 +364,7 @@ internal static class MaterialConstantBufferReader
                 {
                     string memberName = RegisterUniqueName(seenNames, baseName, byteOffset);
                     RecordEvaluated(materialPath, memberName, rows, evaluated, byteOffset - preshaderBufferStart, opcodeProgram);
+                    RecordField(materialPath, new PreshaderField(memberName, byteOffset, rows, opcodeOffset, opcodeSize, checked((int)fieldSlot), checked((int)numFields), opcodeProgram, ReferencedParameters(opcodeData, opcodeOffset, opcodeSize, uniformNumericParameters)));
                     for (int comp = 1; comp < rows; comp++) seenOffsets.Add(byteOffset + comp * 4);
                     AddVectorMember(vectorParams, memberName, byteOffset, rows, ShaderParamType.Bool);
                     break;

@@ -44,6 +44,15 @@ internal sealed class UnrealMaterialParameters
     private const string PackedSpecularName = "_PackedMapSpecular";
     private const string ModeName = "_Mode";
     private const string CutoffName = "_Cutoff";
+    private const string BaseColorName = "_Color";
+    private const string EmissionColorName = "_EmissionColor";
+    private const string MetallicName = "_Metallic";
+    private const string GlossinessName = "_Glossiness";
+    private const string RolesKeyword = "RURI_TEXTURE_ROLES_FROM_SHADER";
+    private const string BaseColorProperty = "MP_BaseColor";
+    private const string EmissiveColorProperty = "MP_EmissiveColor";
+    private const string MetallicProperty = "MP_Metallic";
+    private const string RoughnessProperty = "MP_Roughness";
     private const float ModeOpaque = 0f;
     private const float ModeCutout = 1f;
     private const float ModeFade = 2f;
@@ -190,7 +199,10 @@ internal sealed class UnrealMaterialParameters
         }
         Alias(baseColor, MainTextureName);
         Alias(normal, NormalMapName);
-        Alias(emissive, EmissionMapName);
+        if (keywords.Contains(EmissiveColorProperty))
+        {
+            Alias(emissive, EmissionMapName);
+        }
         if (Alias(packed, PackedMapName) && packed is not null)
         {
             Channel(PackedMetallicName, packed.MetallicChannels);
@@ -198,7 +210,85 @@ internal sealed class UnrealMaterialParameters
             Channel(PackedOcclusionName, packed.OcclusionChannels);
             Channel(PackedSpecularName, packed.SpecularChannels);
         }
+        ApplyValues(semantics);
+        keywords.Add(RolesKeyword);
     }
+
+    /// <summary>
+    /// The parts the material's constant buffer feeds, each field computed for this material's
+    /// own parameter values, stated only for the inputs the graph connects: a base colour or
+    /// emissive field becomes the colour Unity's standard shader multiplies the map by, a
+    /// metallic or roughness field the scalar it uses without a map; roughness is stated as
+    /// Unity's smoothness. A field reading a parameter the material does not declare is the
+    /// engine's own (the editor's selection colour) and states nothing. Where several fields
+    /// feed one part, the part is stated only when they all compute the same value: which of
+    /// two blended constants shows is decided per pixel by the shader, and nothing here says
+    /// which.
+    /// </summary>
+    private void ApplyValues(MaterialSemantics semantics)
+    {
+        Dictionary<string, float[]> stated = new(StringComparer.Ordinal);
+        foreach ((string floatName, float value) in floats)
+        {
+            stated[floatName] = [value, value, value, value];
+        }
+        foreach ((string colorName, Vector4 color) in colors)
+        {
+            stated[colorName] = [color.X, color.Y, color.Z, color.W];
+        }
+        List<Vector4> baseColors = new();
+        List<Vector4> emissives = new();
+        List<float> metallics = new();
+        List<float> glossinesses = new();
+        foreach (MaterialValueSemantics value in semantics.Values)
+        {
+            if (!value.Field.Parameters.All(stated.ContainsKey) || semantics.Evaluate(value, stated) is not { } evaluated)
+            {
+                continue;
+            }
+            if (value.IsBaseColor)
+            {
+                baseColors.Add(Color(evaluated, value.BaseColorLanes));
+            }
+            if (value.IsEmissive)
+            {
+                emissives.Add(Color(evaluated, value.EmissiveLanes));
+            }
+            if (value.MetallicLane is { } metallic && metallic < evaluated.Length)
+            {
+                metallics.Add(evaluated[metallic]);
+            }
+            if (value.RoughnessLane is { } roughness && roughness < evaluated.Length)
+            {
+                glossinesses.Add(1f - evaluated[roughness]);
+            }
+        }
+        if (keywords.Contains(BaseColorProperty) && Agreed(baseColors) is { } baseColor)
+        {
+            colors[BaseColorName] = baseColor;
+        }
+        if (keywords.Contains(EmissiveColorProperty) && Agreed(emissives) is { } emissive)
+        {
+            colors[EmissionColorName] = emissive;
+        }
+        if (keywords.Contains(MetallicProperty) && Agreed(metallics) is { } metal)
+        {
+            floats[MetallicName] = metal;
+        }
+        if (keywords.Contains(RoughnessProperty) && Agreed(glossinesses) is { } glossiness)
+        {
+            floats[GlossinessName] = glossiness;
+        }
+    }
+
+    /// <summary>The value every field computed, or null when there is none or they differ.</summary>
+    private static T? Agreed<T>(List<T> values) where T : struct, IEquatable<T> =>
+        values.Count > 0 && values.All(value => value.Equals(values[0])) ? values[0] : null;
+
+    private static Vector4 Color(float[] evaluated, IReadOnlyList<int?> lanes) =>
+        new(Lane(evaluated, lanes[0]), Lane(evaluated, lanes[1]), Lane(evaluated, lanes[2]), 1f);
+
+    private static float Lane(float[] evaluated, int? lane) => lane is { } index && index < evaluated.Length ? evaluated[index] : 0f;
 
     private static int PackedParts(MaterialSlotSemantics slot) =>
         (slot.MetallicChannels.Count > 0 ? 1 : 0) + (slot.RoughnessChannels.Count > 0 ? 1 : 0) + (slot.OcclusionChannels.Count > 0 ? 1 : 0) + (slot.SpecularChannels.Count > 0 ? 1 : 0);

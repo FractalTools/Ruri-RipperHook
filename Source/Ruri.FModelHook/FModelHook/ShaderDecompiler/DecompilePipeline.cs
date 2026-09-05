@@ -88,7 +88,8 @@ public static class DecompilePipeline
         }
     }
 
-    private static UeMaterialPreshaderVersion DetectPreshaderVersion(string? gameVersionEnum, Action<string>? log)
+    /// <summary>The preshader opcode layout an engine version writes, from the game's EGame name; the material readers state their opcodes by it.</summary>
+    internal static UeMaterialPreshaderVersion DetectPreshaderVersion(string? gameVersionEnum, Action<string>? log)
     {
         if (string.IsNullOrWhiteSpace(gameVersionEnum)) return UeMaterialPreshaderVersion.Ue51;
 
@@ -107,7 +108,7 @@ public static class DecompilePipeline
         if (!baseUe!.StartsWith(prefix, StringComparison.Ordinal)) return UeMaterialPreshaderVersion.Ue51;
         if (!int.TryParse(baseUe!.AsSpan(prefix.Length), out int minor)) return UeMaterialPreshaderVersion.Ue51;
         UeMaterialPreshaderVersion picked =
-            minor >= 7 ? UeMaterialPreshaderVersion.Ue57 :
+            minor >= 5 ? UeMaterialPreshaderVersion.Ue55 :
             minor >= 4 ? UeMaterialPreshaderVersion.Ue54 :
                          UeMaterialPreshaderVersion.Ue51;
         log?.Invoke($"    Pass145: preshader-opcode layout = {picked} (derived from {gameVersionEnum}{(baseUe == gameVersionEnum ? "" : $" → {baseUe}")})");
