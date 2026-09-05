@@ -12,10 +12,10 @@ using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Versions;
 using CUE4Parse_Conversion.Options;
-using Ruri.FModelHook.Game.SBUE;
-using Ruri.FModelHook.Game.SBUE.GlbSceneExport;
-using Ruri.FModelHook.Game.SBUE.Headless;
-using Ruri.FModelHook.Game.SBUE.ShaderDecompiler;
+using Ruri.FModelHook;
+using Ruri.FModelHook.GlbSceneExport;
+using Ruri.FModelHook.ShaderDecompiler.Headless;
+using Ruri.FModelHook.ShaderDecompiler;
 using Ruri.Hook;
 using Ruri.Hook.Config;
 using Ruri.Hook.Core;
@@ -273,7 +273,7 @@ public static class Program
 
         try
         {
-            var exportOptions = SbueExportOptions.Create(EMeshFormat.UEFormat);
+            var exportOptions = UnrealExportOptions.Create(EMeshFormat.UEFormat);
             HeadlessShaderExportRunner.ExportAssetResult result = HeadlessShaderExportRunner.ExportAssetPackages(
                 cfg,
                 opts.ExportAssetPaths,
@@ -373,7 +373,7 @@ public static class Program
                 return 2;
             }
 
-            var options = SbueExportOptions.Create(EMeshFormat.Gltf2, opts.WithMaterials);
+            var options = UnrealExportOptions.Create(EMeshFormat.Gltf2, opts.WithMaterials);
             string outputDirectory = string.IsNullOrWhiteSpace(opts.ExportOut)
                 ? Path.Combine(AppContext.BaseDirectory, "GlbSceneExport")
                 : opts.ExportOut!;
@@ -435,7 +435,7 @@ public static class Program
     {
         Ruri.Hook.Core.HookCatalog.DeclareHost(typeof(Ruri.FModelHook.Attributes.FModelHookAttribute));
         _ = typeof(Ruri.FModelHook.GameType);
-        _ = typeof(Ruri.FModelHook.Game.SBUE.ShaderDecompiler.UE_ShaderDecompiler_Hook);
+        _ = typeof(Ruri.FModelHook.ShaderDecompiler.UE_ShaderDecompiler_Hook);
         try { Assembly.Load("Ruri.FModelHook"); } catch {}
 
         int hookCount = Ruri.Hook.Core.HookCatalog.Decoders.Count;
