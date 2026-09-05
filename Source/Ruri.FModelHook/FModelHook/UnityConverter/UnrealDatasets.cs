@@ -171,13 +171,31 @@ public static class UnrealDatasets
     private static ColumnTable SettingsSchema(DataRequest request)
     {
         TableBuilder table = new(SettingsSchemaId, "name", "kind", "default", "choices", "description", "required");
-        bool unversioned = StoresPropertiesUnversioned(request.GameRoot);
+        bool engineUnstated = EngineUnstated(request.GameRoot);
+        bool engineKnown = !engineUnstated || UnrealSourceOptions.EngineChoice() is not null;
+        bool unversioned = engineKnown && StoresPropertiesUnversioned(request.GameRoot);
         foreach (UnrealSourceOptions.Option option in UnrealSourceOptions.Schema)
         {
-            bool required = unversioned && string.Equals(option.Name, UnrealSourceOptions.Mappings, StringComparison.Ordinal);
+            bool required = string.Equals(option.Name, UnrealSourceOptions.Engine, StringComparison.Ordinal) ? engineUnstated
+                : unversioned && string.Equals(option.Name, UnrealSourceOptions.Mappings, StringComparison.Ordinal);
             table.Row(option.Name, option.Kind, option.Default, option.Choices, option.Description, required ? "1" : "0");
         }
         return table.Build();
+    }
+
+    /// <summary>
+    /// Whether the open install's executable states no engine version -- true only for a root that
+    /// holds archive folders and whose executable carries no build version literal; false while
+    /// no install is open, when the question cannot be asked.
+    /// </summary>
+    private static bool EngineUnstated(string gameRoot)
+    {
+        if (gameRoot.Length == 0)
+        {
+            return false;
+        }
+        string[] pakFolders = UnrealInstall.PakFolders(gameRoot);
+        return pakFolders.Length > 0 && UnrealInstall.EngineFromVersion(UnrealInstall.EngineVersion(pakFolders[0])) is null;
     }
 
     /// <summary>
@@ -188,6 +206,10 @@ public static class UnrealDatasets
     /// </summary>
     private static bool StoresPropertiesUnversioned(string gameRoot)
     {
+        if (gameRoot.Length == 0)
+        {
+            return false;
+        }
         try
         {
             UnrealFileProvider provider = UnrealProviderSession.Open(gameRoot);

@@ -46,7 +46,8 @@ public static class UnrealSourceOptions
     public static IReadOnlyList<Option> Schema { get; } =
     [
         new(Engine, KindChoice, string.Empty, string.Join('|', EngineNames()),
-            "The Unreal version (CUE4Parse EGame) the packages were cooked with. Empty reads it off the game executable's own version resource."),
+            "The Unreal version (CUE4Parse EGame) the packages were cooked with. Empty reads it off the build version literal every Unreal executable carries "
+            + "(++UE5+Release-5.1-CL-23901901); required only for a build on a renamed engine branch, whose executable carries none."),
         new(TexturePlatform, KindChoice, nameof(ETexturePlatform.DesktopMobile), string.Join('|', Enum.GetNames<ETexturePlatform>()),
             "How textures were cooked: the platform whose swizzle and block layout the texel data follows."),
         new(MainKey, KindText, string.Empty, string.Empty,

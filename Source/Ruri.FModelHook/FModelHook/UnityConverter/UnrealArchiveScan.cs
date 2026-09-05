@@ -26,9 +26,13 @@ public static class UnrealArchiveScan
 
     public static List<(string Cab, string FileName, List<string> Deps, List<int> ClassIds, List<string> Paths)> ScanFull(string archivePath)
     {
+        List<(string, string, List<string>, List<int>, List<string>)> rows = new();
+        if (!UnrealInstall.IsArchive(archivePath))
+        {
+            return rows;
+        }
         UnrealFileProvider provider = UnrealProviderSession.Current;
         IAesVfsReader? reader = FindReader(provider, archivePath);
-        List<(string, string, List<string>, List<int>, List<string>)> rows = new();
         if (reader is null)
         {
             Logger.Verbose(LogCategory.Import, $"[Unreal] '{archivePath}' is not a mounted archive; skipped.");

@@ -29,16 +29,18 @@ public static class CabMap
             return 1;
         }
 
+        Func<string, bool>? includeBefore = GameBundleHook.ScanIncludeFile;
         GameBundleHook.ScanIncludeFile = GameBundleHook.CabScanIncludeFile;
         List<(string Cab, string FileName, List<string> Deps, List<int> ClassIds, List<string> Paths)>?[] perFile = new List<(string, string, List<string>, List<int>, List<string>)>?[files.Length];
+        ConcurrentDictionary<string, int> failures = new(StringComparer.Ordinal);
         try
         {
             ParallelOptions outerLanes = new() { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 4, 2, 8) };
-            Parallel.For(0, files.Length, outerLanes, i => perFile[i] = ScanFullMetadata(files[i]));
+            Parallel.For(0, files.Length, outerLanes, i => perFile[i] = ScanFullMetadata(files[i], failures));
         }
         finally
         {
-            GameBundleHook.ScanIncludeFile = null;
+            GameBundleHook.ScanIncludeFile = includeBefore;
         }
 
         Dictionary<string, Entry> entries = new(StringComparer.OrdinalIgnoreCase);
@@ -57,13 +59,26 @@ public static class CabMap
             perFile[i] = null;
         }
 
+        foreach ((string failure, int count) in failures)
+        {
+            Logger.Warning(LogCategory.Import, $"[CabMap] {count} file(s) could not be scanned: {failure}");
+        }
+        if (entries.Count == 0 && !failures.IsEmpty)
+        {
+            throw new InvalidOperationException($"No CAB could be scanned under '{fullRoot}': {failures.Keys.First()}");
+        }
         CabTable.FromEntries(fullRoot, entries).Save(fullOut);
         int named = entries.Values.Count(static e => e.ContainerPaths.Count > 0);
         Console.Error.WriteLine($"[CabMap] {files.Length} files scanned, {entries.Count} CABs ({named} with addressable paths) → {fullOut}");
         return 0;
     }
 
-    internal static List<(string Cab, string FileName, List<string> Deps, List<int> ClassIds, List<string> Paths)> ScanFullMetadata(string file)
+    /// <summary>
+    /// One file's rows. A decoder's own scanner failing is recorded in <paramref name="failures"/>
+    /// by message, so a build that yields nothing can say why; the generic path's failures are
+    /// not, since every file that is no bundle fails it by design.
+    /// </summary>
+    internal static List<(string Cab, string FileName, List<string> Deps, List<int> ClassIds, List<string> Paths)> ScanFullMetadata(string file, ConcurrentDictionary<string, int> failures)
     {
         if (GameBundleHook.ScanChunkFull is { } scanChunk)
         {
@@ -73,6 +88,7 @@ public static class CabMap
             }
             catch (Exception ex)
             {
+                failures.AddOrUpdate($"{ex.GetType().Name}: {ex.Message}", 1, static (_, count) => count + 1);
                 Logger.Verbose(LogCategory.Import, $"[CabMap] Scan '{file}': {ex.GetType().Name}: {ex.Message}");
                 return new();
             }

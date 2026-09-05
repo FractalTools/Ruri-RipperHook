@@ -9,8 +9,8 @@ namespace Ruri.FModelHook.UnityConverter;
 /// <summary>
 /// What a packaged Unreal install says it is. The archives' own mount point names the project
 /// (CUE4Parse's ProjectName reads it off the directory index), the project's DefaultGame.ini
-/// inside those archives names the company and the project's own version, and the executable's
-/// version resource names the engine. Asked without any decoder selected -- an install whose
+/// inside those archives names the company and the project's own version, and the build version
+/// literal compiled into the executable names the engine. Asked without any decoder selected -- an install whose
 /// archives need a key answers with what it can read (the engine, the folder) and states no
 /// project until the key is given through the source options.
 /// </summary>

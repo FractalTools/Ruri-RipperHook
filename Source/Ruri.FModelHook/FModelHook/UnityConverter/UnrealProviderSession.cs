@@ -123,7 +123,8 @@ public static class UnrealProviderSession
         EGame game = UnrealSourceOptions.EngineChoice()
             ?? UnrealInstall.EngineFromVersion(engineVersion)
             ?? throw new InvalidOperationException(
-                $"[Unreal] The executable under '{pakFolders[0]}' states no engine version; state one with the '{UnrealSourceOptions.Engine}' option.");
+                $"[Unreal] The executable of '{pakFolders[0]}' carries no '++UE<major>+Release-<major>.<minor>' build literal, so which engine cooked it is unknown: "
+                + $"state it with the '{UnrealSourceOptions.Engine}' option (Load Options Form).");
 
         VersionContainer versions = new(
             game: game,
