@@ -64,13 +64,19 @@ internal sealed class UnrealMaterialParameters
     private const string ValuesSuffix = "Values";
 
     /// <summary>
-    /// The runtime parameter kinds in the order the engine indexes its cached entries by.
-    /// EMaterialParameterType is a plain C++ enum with no reflection, so the order is stated per
-    /// engine version from MaterialTypes.h and verified against every material's own tables --
-    /// the entry count and each kind's value count -- before a value is read.
+    /// The runtime parameter kinds in the order the engine indexes its cached entries by, per
+    /// engine version. EMaterialParameterType is a plain C++ enum with no reflection, and the
+    /// cached data does not declare its value tables in that order (5.5 declares StaticSwitchValues
+    /// second), so the order is stated per version from Epic's own API reference for that version
+    /// and verified against every material's own tables -- the entry count and each kind's value
+    /// count -- before a value is read. 5.1 is the six kinds whose value tables the 5.1 schema
+    /// declares beside a six-entry RuntimeEntries, in the order those six keep in 5.4, and every
+    /// material of a 5.1 build validated against it.
     /// </summary>
     private static readonly IReadOnlyDictionary<EGame, string[]> KindLayouts = new Dictionary<EGame, string[]>
     {
+        [EGame.GAME_UE5_1] = ["Scalar", "Vector", "DoubleVector", "Texture", "Font", "RuntimeVirtualTexture"],
+        [EGame.GAME_UE5_4] = ["Scalar", "Vector", "DoubleVector", "Texture", "Font", "RuntimeVirtualTexture", "SparseVolumeTexture", "StaticSwitch"],
         [EGame.GAME_UE5_5] = ["Scalar", "Vector", "DoubleVector", "Texture", "TextureCollection", "Font", "RuntimeVirtualTexture", "SparseVolumeTexture", "StaticSwitch"],
     };
 
@@ -379,6 +385,10 @@ internal sealed class UnrealMaterialParameters
         {
             Logger.Warning(LogCategory.Import, $"[Unreal] {owner}: {count} cached parameter entries beside the {layout.Length} kinds declared for {game}; parameter defaults not read.");
             return;
+        }
+        if (Logger.AllowVerbose)
+        {
+            Logger.Verbose(LogCategory.Import, $"[Unreal] {owner}: cached parameter counts {string.Join(", ", layout.Select((kind, index) => kind + "=" + (entries[index]?.Length ?? 0)))}.");
         }
         for (int kindIndex = 0; kindIndex < layout.Length; kindIndex++)
         {
