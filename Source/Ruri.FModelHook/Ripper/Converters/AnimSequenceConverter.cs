@@ -4,6 +4,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_74;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Animation;
 using CUE4Parse.UE4.Objects.Core.Math;
+using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse_Conversion.Animations;
 using CUE4Parse_Conversion.Dto;
 using CUE4Parse_Conversion.Writers.ActorX.Structs.Animations;
@@ -49,8 +50,12 @@ public sealed class AnimSequenceConverter : IUnrealConverter
             return;
         }
         CAnimSequence sequence = animSet.Sequences[0];
-        int frameCount = Math.Max(1, sequence.NumFrames);
-        float sampleRate = sequence.FramesPerSecond > 0f ? sequence.FramesPerSecond : 30f;
+        int sourceFrames = Math.Max(1, sequence.NumFrames);
+        float assetRate = AssetRate(source, sourceFrames);
+        float statedRate = UnrealSourceOptions.AnimationSampleRateValue();
+        float sampleRate = statedRate > 0f ? statedRate : assetRate;
+        int frameCount = statedRate > 0f ? Math.Max(1, (int)MathF.Round(source.SequenceLength * statedRate) + 1) : sourceFrames;
+        float sourceStep = frameCount > 1 ? (sourceFrames - 1f) / (frameCount - 1f) : 0f;
 
         SkeletonDto skeletonDto = new(skeleton);
         UnrealRig rig = UnrealRig.From(skeletonDto.Bones, conversion.Basis);
@@ -77,7 +82,7 @@ public sealed class AnimSequenceConverter : IUnrealConverter
                 FQuat quaternion = restPose.Rotation;
                 FVector position = restPose.Translation;
                 FVector scale = restPose.Scale3D;
-                track.GetBoneTransform(frame, frameCount, ref quaternion, ref position, ref scale);
+                track.GetBoneTransform(frame * sourceStep, sourceFrames, ref quaternion, ref position, ref scale);
                 if (rotations is not null)
                 {
                     rotations[frame] = conversion.Basis.Rotation(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
@@ -94,5 +99,21 @@ public sealed class AnimSequenceConverter : IUnrealConverter
             tracks.Add(new ClipTrack { Path = rest.Path, Positions = positions, Rotations = rotations, Scales = scales });
         }
         ClipBuilder.Fill(clip, sampleRate, frameCount, tracks, []);
+    }
+
+    /// <summary>
+    /// The rate the sequence was sampled at, as the engine defines it: the platform target frame
+    /// rate the cooked sequence carries (UAnimSequence::GetSamplingFrameRate), and for a sequence
+    /// cooked before that field existed, the relation the engine keeps between its key count and
+    /// its length (keys = length * rate + 1).
+    /// </summary>
+    private static float AssetRate(UAnimSequence source, int sourceFrames)
+    {
+        FPerPlatformFrameRate? target = source.GetOrDefault<FPerPlatformFrameRate>("PlatformTargetFrameRate");
+        if (target is { Default.Denominator: > 0 })
+        {
+            return (float)target.Default.Numerator / target.Default.Denominator;
+        }
+        return source.SequenceLength > 0f && sourceFrames > 1 ? (sourceFrames - 1) / source.SequenceLength : 1f;
     }
 }

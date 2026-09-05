@@ -27,6 +27,7 @@ public static class UnrealSourceOptions
     public const string ExtraDirectories = "unreal.paks.extra";
     public const string ReadShaderMaps = "unreal.read.shadermaps";
     public const string Codecs = "unreal.codecs";
+    public const string AnimationSampleRate = "unreal.animation.samplerate";
 
     public const char EntrySeparator = ';';
     public const char ValueSeparator = '=';
@@ -63,7 +64,22 @@ public static class UnrealSourceOptions
             "Deserialize the inline shader maps of materials. Costly, needed only for shader work."),
         new(Codecs, KindPath, string.Empty, string.Empty,
             "The folder holding the native codecs (Oodle, zlib-ng, Detex) archives and textures are decoded with. Empty reads the '.data' folder beside the kernel."),
+        new(AnimationSampleRate, KindText, "0", string.Empty,
+            "Frames per second animation clips are sampled at. 0 keeps every sequence's own target frame rate (a build may state 1920); a lower rate resamples the decoded tracks and shrinks the clips."),
     ];
+
+    /// <summary>The stated animation sample rate, or zero for "each sequence's own"; text that is not a number is an error naming the option.</summary>
+    public static float AnimationSampleRateValue()
+    {
+        string value = Text(AnimationSampleRate);
+        if (value.Length == 0)
+        {
+            return 0f;
+        }
+        return float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float rate) && rate >= 0f
+            ? rate
+            : throw new FormatException($"[Unreal] '{AnimationSampleRate}' must be a frame rate (frames per second, 0 for the sequence's own); got '{value}'.");
+    }
 
     public static string Text(string name)
     {
