@@ -8,6 +8,7 @@ using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using Ruri.FModelHook.ShaderDecompiler.Semantics;
 using CUE4Parse.UE4.Versions;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
@@ -35,6 +36,17 @@ internal sealed class UnrealMaterialParameters
     private const string ParameterValueName = "ParameterValue";
     private const string ConnectedMaskName = "PropertyConnectedMask";
     private const string ReferencedTexturesName = "ReferencedTextures";
+    private const string EmissionMapName = "_EmissionMap";
+    private const string PackedMapName = "_PackedMap";
+    private const string PackedMetallicName = "_PackedMapMetallic";
+    private const string PackedRoughnessName = "_PackedMapRoughness";
+    private const string PackedOcclusionName = "_PackedMapOcclusion";
+    private const string PackedSpecularName = "_PackedMapSpecular";
+    private const string ModeName = "_Mode";
+    private const string CutoffName = "_Cutoff";
+    private const float ModeOpaque = 0f;
+    private const float ModeCutout = 1f;
+    private const float ModeFade = 2f;
     private const string MainTextureName = "_MainTex";
     private const string NormalMapName = "_BumpMap";
     private const string MaterialPropertyEnumName = "EMaterialProperty";
@@ -60,6 +72,7 @@ internal sealed class UnrealMaterialParameters
     private readonly OrderedDictionary<string, Vector4> colors = new(StringComparer.Ordinal);
     private readonly List<string> keywords = new();
     private readonly HashSet<string> parameterDefaults = new(StringComparer.Ordinal);
+    private readonly List<string> referencedNames = new();
 
     public UnrealMaterialParameters(UnrealConversion conversion)
     {
@@ -139,9 +152,95 @@ internal sealed class UnrealMaterialParameters
         }
     }
 
+    /// <summary>
+    /// The parts the compiled base pass gave each slot, stated on the material in Unity's
+    /// vocabulary beside the slot's own name: the base colour, normal map and emission slots
+    /// under the Standard shader's property names, and the packed masks slot under a declared
+    /// map whose channel of metallic, roughness, occlusion and specular each rides as a float.
+    /// Where several slots feed one part, the slot feeding it with the most channels wins.
+    /// </summary>
+    public void Apply(MaterialSemantics semantics)
+    {
+        MaterialSlotSemantics? baseColor = null;
+        MaterialSlotSemantics? normal = null;
+        MaterialSlotSemantics? emissive = null;
+        MaterialSlotSemantics? packed = null;
+        foreach (MaterialSlotSemantics slot in semantics.Slots)
+        {
+            if (SlotKey(slot) is null)
+            {
+                continue;
+            }
+            if (slot.IsBaseColor && (baseColor is null || slot.BaseColorChannels.Count > baseColor.BaseColorChannels.Count))
+            {
+                baseColor = slot;
+            }
+            if (slot.IsNormal && (normal is null || slot.NormalChannels.Count > normal.NormalChannels.Count))
+            {
+                normal = slot;
+            }
+            if (slot.IsEmissive && (emissive is null || slot.EmissiveChannels.Count > emissive.EmissiveChannels.Count))
+            {
+                emissive = slot;
+            }
+            if (slot.IsPacked && (packed is null || PackedParts(slot) > PackedParts(packed)))
+            {
+                packed = slot;
+            }
+        }
+        Alias(baseColor, MainTextureName);
+        Alias(normal, NormalMapName);
+        Alias(emissive, EmissionMapName);
+        if (Alias(packed, PackedMapName) && packed is not null)
+        {
+            Channel(PackedMetallicName, packed.MetallicChannels);
+            Channel(PackedRoughnessName, packed.RoughnessChannels);
+            Channel(PackedOcclusionName, packed.OcclusionChannels);
+            Channel(PackedSpecularName, packed.SpecularChannels);
+        }
+    }
+
+    private static int PackedParts(MaterialSlotSemantics slot) =>
+        (slot.MetallicChannels.Count > 0 ? 1 : 0) + (slot.RoughnessChannels.Count > 0 ? 1 : 0) + (slot.OcclusionChannels.Count > 0 ? 1 : 0) + (slot.SpecularChannels.Count > 0 ? 1 : 0);
+
+    /// <summary>The material's own key for a slot: its parameter name, else the referenced texture it samples as a constant.</summary>
+    private string? SlotKey(MaterialSlotSemantics slot)
+    {
+        string key = slot.ParameterName.Length > 0
+            ? slot.ParameterName
+            : slot.TextureIndex >= 0 && slot.TextureIndex < referencedNames.Count ? referencedNames[slot.TextureIndex] : string.Empty;
+        return key.Length > 0 && textures.ContainsKey(key) ? key : null;
+    }
+
+    private bool Alias(MaterialSlotSemantics? slot, string property)
+    {
+        if (slot is null || SlotKey(slot) is not { } key)
+        {
+            return false;
+        }
+        textures[property] = textures[key];
+        return true;
+    }
+
+    /// <summary>A part's channel float is stated only when the shader reads the part from exactly one channel.</summary>
+    private void Channel(string property, IReadOnlySet<int> channels)
+    {
+        if (MaterialSlotSemantics.Single(channels) is { } index)
+        {
+            floats[property] = index;
+        }
+    }
+
     public MaterialInputs Inputs(string name, IShader shader)
     {
         MaterialInputs inputs = new() { Name = name, Shader = shader };
+        int blend = (int)floats[MaterialConverter.BlendModeName];
+        bool masked = blend == (int)EBlendMode.BLEND_Masked;
+        floats[ModeName] = blend == (int)EBlendMode.BLEND_Opaque ? ModeOpaque : masked ? ModeCutout : ModeFade;
+        if (masked)
+        {
+            floats[CutoffName] = floats[MaterialConverter.OpacityMaskClipValueName];
+        }
         foreach ((string textureName, ITexture2D? texture) in textures)
         {
             inputs.Textures.Add((textureName, texture, Vector2.One, Vector2.Zero));
@@ -246,7 +345,9 @@ internal sealed class UnrealMaterialParameters
         List<UTexture> others = new();
         foreach (FPackageIndex pointer in referenced)
         {
-            if (pointer.Load() is not UTexture texture || parameterDefaults.Contains(texture.GetPathName()))
+            UTexture? loaded = pointer.Load() as UTexture;
+            referencedNames.Add(loaded?.Name ?? string.Empty);
+            if (loaded is not { } texture || parameterDefaults.Contains(texture.GetPathName()))
             {
                 continue;
             }

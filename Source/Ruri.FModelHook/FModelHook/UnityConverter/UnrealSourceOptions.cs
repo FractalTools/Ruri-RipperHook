@@ -29,6 +29,7 @@ public static class UnrealSourceOptions
     public const string Codecs = "unreal.codecs";
     public const string AnimationSampleRate = "unreal.animation.samplerate";
     public const string AnimationTolerance = "unreal.animation.tolerance";
+    public const string MaterialSemantics = "unreal.material.semantics";
 
     public const char EntrySeparator = ';';
     public const char ValueSeparator = '=';
@@ -63,6 +64,8 @@ public static class UnrealSourceOptions
             "Additional archive folders outside the install (downloaded content, save-side paks) separated by ';'."),
         new(ReadShaderMaps, KindFlag, "false", string.Empty,
             "Deserialize the inline shader maps of materials. Costly, needed only for shader work."),
+        new(MaterialSemantics, KindFlag, "true", string.Empty,
+            "Read each material's compiled base pass out of the shipped shader library and trace which texture channels feed base colour, normal, metallic, roughness, occlusion, emissive and the opacity mask, so the Unity material states those parts by name. Implies reading shader maps."),
         new(Codecs, KindPath, string.Empty, string.Empty,
             "The folder holding the native codecs (Oodle, zlib-ng, Detex) archives and textures are decoded with. Empty reads the '.data' folder beside the kernel."),
         new(AnimationSampleRate, KindText, "0", string.Empty,

@@ -30,6 +30,26 @@ internal sealed class MaterialUniformBufferLayout
 
     public IReadOnlyList<string> ResourceMemberNames => _resourceMemberNames;
 
+    /// <summary>
+    /// The texture-parameter group and index a member name states, the inverse of the naming
+    /// above: the groups are the material's texture parameter types in the order the engine
+    /// keeps them -- 2D, cube, 2D array, cube array, volume, virtual (its physical texture).
+    /// </summary>
+    public static bool TryParseTextureSlot(string memberName, out int group, out int index)
+    {
+        group = -1;
+        index = -1;
+        int underscore = memberName.LastIndexOf('_');
+        if (underscore <= 0 || !int.TryParse(memberName[(underscore + 1)..], out index))
+        {
+            return false;
+        }
+        group = Array.IndexOf(TextureGroupPrefixes, memberName[..underscore]);
+        return group >= 0;
+    }
+
+    private static readonly string[] TextureGroupPrefixes = ["Texture2D", "TextureCube", "Texture2DArray", "TextureCubeArray", "VolumeTexture", "VirtualTexturePhysical"];
+
     private static List<string> BuildResourceMemberNames(MaterialResourceCounts counts)
     {
         List<string> result = new();

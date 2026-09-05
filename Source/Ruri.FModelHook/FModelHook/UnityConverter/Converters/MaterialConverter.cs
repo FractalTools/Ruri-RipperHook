@@ -3,7 +3,9 @@ using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using AssetRipper.Import.Logging;
 using CUE4Parse.UE4.Assets.Exports.Material;
+using Ruri.FModelHook.ShaderDecompiler.Semantics;
 using Ruri.RipperHook.Conversion;
 
 namespace Ruri.FModelHook.UnityConverter.Converters;
@@ -59,6 +61,18 @@ public sealed class MaterialConverter : IUnrealConverter
                 case UMaterialInstance instance:
                     parameters.ReadInstance(instance);
                     break;
+            }
+        }
+
+        if (conversion.Shared.Semantics is { } resolver && resolver.Resolve(source) is { } semantics)
+        {
+            if (semantics.IsResolved)
+            {
+                parameters.Apply(semantics);
+            }
+            else
+            {
+                Logger.Verbose(LogCategory.Import, $"[Unreal] {source.GetPathName()}: material semantics not read: {semantics.Status}");
             }
         }
 

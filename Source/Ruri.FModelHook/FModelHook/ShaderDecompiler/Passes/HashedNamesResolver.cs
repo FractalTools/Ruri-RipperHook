@@ -62,8 +62,12 @@ internal static class HashedNamesResolver
     private static Dictionary<string, string> LoadPrecomputedHashIndex(string typeKindFolder)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        string exeDir = AppContext.BaseDirectory;
-        string root = Path.Combine(exeDir, "EngineUbMetadata");
+        string root = Path.Combine(AppContext.BaseDirectory, "EngineUbMetadata");
+        if (!Directory.Exists(root))
+        {
+            string? moduleDir = Path.GetDirectoryName(typeof(HashedNamesResolver).Assembly.Location);
+            root = moduleDir is null ? root : Path.Combine(moduleDir, "EngineUbMetadata");
+        }
         if (!Directory.Exists(root)) return map;
 
         foreach (string file in Directory.EnumerateFiles(root, "_HashToName.json", SearchOption.AllDirectories))

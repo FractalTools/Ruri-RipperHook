@@ -10,6 +10,7 @@ using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.VirtualFileSystem;
+using Ruri.FModelHook.ShaderDecompiler.Semantics;
 using Ruri.FModelHook.UnityConverter.TypeTree;
 using Ruri.RipperHook.Conversion;
 using System.Collections.Concurrent;
@@ -31,7 +32,11 @@ public sealed class UnrealLoadShared
     {
         Provider = provider;
         ScriptPackage = scriptPackage;
+        Semantics = UnrealSourceOptions.Flag(UnrealSourceOptions.MaterialSemantics) ? provider.Semantics : null;
     }
+
+    /// <summary>The mount's material semantics, when the load asked for them.</summary>
+    public MaterialSemanticsResolver? Semantics { get; }
 
     public UnrealFileProvider Provider { get; }
 

@@ -137,7 +137,7 @@ public static class UnrealProviderSession
             .ToArray();
         UnrealFileProvider mounted = new(new DirectoryInfo(pakFolders[0]), extra, SearchOption.AllDirectories, versions, StringComparer.OrdinalIgnoreCase);
         mounted.ReadScriptData = false;
-        mounted.ReadShaderMaps = UnrealSourceOptions.Flag(UnrealSourceOptions.ReadShaderMaps);
+        mounted.ReadShaderMaps = UnrealSourceOptions.Flag(UnrealSourceOptions.ReadShaderMaps) || UnrealSourceOptions.Flag(UnrealSourceOptions.MaterialSemantics);
         mounted.ReadNaniteData = true;
         mounted.Initialize();
         mounted.Mount();
