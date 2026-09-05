@@ -29,10 +29,9 @@ public static class UnrealActorScan
     {
         ArgumentNullException.ThrowIfNull(provider);
         List<Actor> actors = new();
-        if (provider.MappingsForGame is not { } mappings)
+        if (provider.MappingsContainer is SchemalessMappingsProvider || provider.MappingsForGame is not { } mappings)
         {
-            Logger.Warning(LogCategory.Import, "[Unreal] No property schema is loaded, so no class can be told an actor; the actor list is empty.");
-            return actors;
+            throw new InvalidOperationException($"No reflection schema is loaded, so no class can be told an actor: state the .usmap with the '{UnrealSourceOptions.Mappings}' option (Load Options Form).");
         }
         ConcurrentBag<Actor> found = new();
         int unreadable = 0;

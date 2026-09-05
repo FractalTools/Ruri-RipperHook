@@ -98,6 +98,14 @@ public static class UnrealPackageLoader
             Logger.Warning(LogCategory.Import, "[Unreal] No package admitted for loading.");
             return;
         }
+        if (provider.MappingsContainer is SchemalessMappingsProvider && admitted.FirstOrDefault(static file => UnrealProviderSession.Current.LoadPackage(file) is AbstractUePackage package
+                && package.HasFlags(EPackageFlags.PKG_UnversionedProperties)) is { } unversioned)
+        {
+            throw new InvalidOperationException(
+                $"'{unversioned.Path}' stores its properties unversioned, which only the game's own reflection schema can read: "
+                + $"state the .usmap with the '{UnrealSourceOptions.Mappings}' option (Load Options Form). "
+                + "Ruri.Tpk --unreal-reflection <game executable> writes one. Without it a load yields empty meshes and bare skeletons.");
+        }
 
         long startHeap = GC.GetTotalMemory(true);
         Stopwatch phase = Stopwatch.StartNew();
