@@ -29,6 +29,13 @@ public readonly struct DataRequest
 
     public string[] Roots => Session.RootsOrThrow(_dataset.Id);
 
+    /// <summary>Whether the caller stated the argument at all, whatever its kind: how an optional argument's absence is told from its default.</summary>
+    public bool Given(string name)
+    {
+        Declared(name);
+        return _values.TryGetValue(name, out string[]? values) && values.Length > 0;
+    }
+
     public string Text(string name)
     {
         string[] values = Values(name, ParamKind.Text);
@@ -84,16 +91,18 @@ public readonly struct DataRequest
         return parsed;
     }
 
-    private string[] Values(string name, ParamKind kind)
+    private DataParam Declared(string name)
     {
-        DataParam? declared = _dataset.Parameters.FirstOrDefault(
-            parameter => string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (declared is null)
-        {
-            throw new InvalidOperationException(
+        return _dataset.Parameters.FirstOrDefault(
+            parameter => string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(
                 $"dataset '{_dataset.Id}' reads an argument '{name}' it never declared; it declares: "
                 + $"{string.Join(", ", _dataset.Parameters.Select(parameter => parameter.ToString()))}.");
-        }
+    }
+
+    private string[] Values(string name, ParamKind kind)
+    {
+        DataParam declared = Declared(name);
         if (declared.Kind != kind)
         {
             throw new InvalidOperationException(
