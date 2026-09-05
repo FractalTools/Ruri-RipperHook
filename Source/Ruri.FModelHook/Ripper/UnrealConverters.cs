@@ -154,6 +154,7 @@ public static class UnrealConverters
         new Converters.MaterialConverter(),
         new Converters.AnimSequenceConverter(),
         new Converters.WorldConverter(),
+        new Converters.DataTableConverter(),
         new Converters.PropertyBagConverter(),
     ];
 

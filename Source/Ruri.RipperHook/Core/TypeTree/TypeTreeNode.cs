@@ -33,6 +33,18 @@ public sealed class TypeTreeNode
 
     public bool AlignBytes => MetaFlag.IsAlignBytes();
 
+    /// <summary>
+    /// A node stated directly, for a shape known only from the data in hand rather than from a
+    /// packed schema: the same vocabulary a tpk node carries, so the interpreter reads it alike.
+    /// </summary>
+    public static TypeTreeNode Create(string typeName, string name, TransferMetaFlags metaFlag, params TypeTreeNode[] subNodes)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(typeName);
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(subNodes);
+        return new TypeTreeNode(typeName, name, 1, metaFlag, subNodes.Length == 0 ? NoSubNodes : subNodes);
+    }
+
     private TypeTreeNode(string typeName, string originalName, int version, TransferMetaFlags metaFlag, TypeTreeNode[] subNodes)
     {
         TypeName = typeName;

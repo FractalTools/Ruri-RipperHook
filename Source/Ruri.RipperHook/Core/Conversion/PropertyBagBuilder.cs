@@ -35,11 +35,17 @@ public static class PropertyBagBuilder
         return script;
     }
 
-    public static SerializableStructure Structure(TypeTreeNode root, AssetRipper.Primitives.UnityVersion version)
+    /// <summary>
+    /// An empty structure of the shape <paramref name="root"/> states. A shared root -- one a
+    /// schema owns and hands out for every instance of its class -- is interpreted once and
+    /// cached by identity; a root built for a single object is interpreted and forgotten.
+    /// </summary>
+    public static SerializableStructure Structure(TypeTreeNode root, AssetRipper.Primitives.UnityVersion version, bool shared = true)
     {
         ArgumentNullException.ThrowIfNull(root);
-        SerializableTreeType type = TypeCache.GetOrAdd(root, static node =>
-            SerializableTreeType.FromRootNode(ToStruct(node), monoBehaviourStructure: true));
+        SerializableTreeType type = shared
+            ? TypeCache.GetOrAdd(root, static node => SerializableTreeType.FromRootNode(ToStruct(node), monoBehaviourStructure: true))
+            : SerializableTreeType.FromRootNode(ToStruct(root), monoBehaviourStructure: true);
         SerializableStructure structure = type.CreateSerializableStructure();
         structure.InitializeFields(version);
         return structure;

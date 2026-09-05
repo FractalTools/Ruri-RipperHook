@@ -2,6 +2,7 @@ using AssetRipper.Primitives;
 using AssetRipper.SourceGenerated;
 using CUE4Parse.FileProvider;
 using CUE4Parse.MappingsProvider;
+using CUE4Parse.UE4.Assets;
 using Ruri.RipperHook.Core;
 using Ruri.RipperHook.Core.TypeTree;
 using Ruri.FModelHook.Ripper.TypeTree;
@@ -22,6 +23,16 @@ public static class UnrealTypeTree
     public static readonly string LineageKey = ((int)CustomEngineType.UnrealEngine).ToString(CultureInfo.InvariantCulture);
 
     public static readonly TypeTreeVersion Version = new(CustomEngineType.UnrealEngine, VersionKey);
+
+    private const string ScriptPackagePrefix = "/Script/";
+
+    /// <summary>
+    /// Whether a type lives in a script package -- compiled into the game, and so in the
+    /// reflection schema -- or in a content package, where a Blueprint class or a user-defined
+    /// struct is data the schema never saw and the object's own tags state its shape.
+    /// </summary>
+    public static bool IsNative(ResolvedObject? type) =>
+        type?.Package.Name is { } package && package.StartsWith(ScriptPackagePrefix, StringComparison.Ordinal);
 
     private static readonly object Gate = new();
     private static TypeMappings? registeredFor;
