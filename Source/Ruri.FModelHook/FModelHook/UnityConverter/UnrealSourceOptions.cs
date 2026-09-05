@@ -34,6 +34,7 @@ public static class UnrealSourceOptions
     public const char EntrySeparator = ';';
     public const char ValueSeparator = '=';
 
+    /// <summary>One value the decoder reads an install with. A required option is one the build cannot be read without; which options are required is the mounted build's to say (see <see cref="UnrealDatasets"/>).</summary>
     public sealed record Option(string Name, string Kind, string Default, string Choices, string Description);
 
     public const string KindText = "text";

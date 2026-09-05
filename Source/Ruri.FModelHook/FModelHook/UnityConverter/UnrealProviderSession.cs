@@ -13,7 +13,8 @@ namespace Ruri.FModelHook.UnityConverter;
 /// folders (plus the extra folders stated), opened with the stated keys, versioned the way the
 /// stated options say, its property schema the stated mappings. Built on first use, kept while
 /// the install and the options stay what they were, dropped the moment either changes -- a
-/// provider mounted under yesterday's key is not a provider for today's.
+/// provider mounted under yesterday's key is not a provider for today's. The install is
+/// known by its full path without a trailing separator, however a caller spelled it.
 /// </summary>
 public static class UnrealProviderSession
 {
@@ -33,7 +34,8 @@ public static class UnrealProviderSession
     public static UnrealFileProvider Open(string gameRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRoot);
-        string wanted = gameRoot + "\n" + UnrealSourceOptions.Fingerprint();
+        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(gameRoot));
+        string wanted = root + "\n" + UnrealSourceOptions.Fingerprint();
         lock (Gate)
         {
             if (provider is not null && fingerprint == wanted)
@@ -42,7 +44,7 @@ public static class UnrealProviderSession
             }
             provider?.Dispose();
             provider = null;
-            provider = Mount(gameRoot);
+            provider = Mount(root);
             fingerprint = wanted;
             return provider;
         }

@@ -1,9 +1,12 @@
+using AssetRipper.Import.Logging;
+using AssetRipper.SourceGenerated;
 using CUE4Parse.FileProvider;
 using CUE4Parse.FileProvider.Objects;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.IO;
+using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Pak;
 using CUE4Parse.UE4.VirtualFileSystem;
-using AssetRipper.SourceGenerated;
 using Ruri.RipperHook.CabMapping;
 using Ruri.RipperHook.Data;
 using Ruri.RipperHook.Tables;
@@ -35,7 +38,8 @@ public static class UnrealDatasets
     {
         Datasets.Publish(SettingsSchemaId, DataRole.Introspection, [],
             "Every source option this decoder reads: name, kind (text|flag|choice|path|entries), default, "
-            + "choices ('|'-separated for a choice) and what it means. A host draws its form from this.",
+            + "choices ('|'-separated for a choice), what it means, and whether the mounted build cannot be read without it "
+            + "(the reflection schema, for a build that stores its properties unversioned). A host draws its form from this.",
             SettingsSchema);
 
         Datasets.Publish(SessionId, DataRole.Session, [],
@@ -166,12 +170,40 @@ public static class UnrealDatasets
 
     private static ColumnTable SettingsSchema(DataRequest request)
     {
-        TableBuilder table = new(SettingsSchemaId, "name", "kind", "default", "choices", "description");
+        TableBuilder table = new(SettingsSchemaId, "name", "kind", "default", "choices", "description", "required");
+        bool unversioned = StoresPropertiesUnversioned(request.GameRoot);
         foreach (UnrealSourceOptions.Option option in UnrealSourceOptions.Schema)
         {
-            table.Row(option.Name, option.Kind, option.Default, option.Choices, option.Description);
+            bool required = unversioned && string.Equals(option.Name, UnrealSourceOptions.Mappings, StringComparison.Ordinal);
+            table.Row(option.Name, option.Kind, option.Default, option.Choices, option.Description, required ? "1" : "0");
         }
         return table.Build();
+    }
+
+    /// <summary>
+    /// Whether the mounted build stores its objects' properties unversioned -- the layout only
+    /// the build's own reflection schema can read -- judged by the first package the mount
+    /// holds, every package of one cook sharing the flag. False while nothing mounts (an
+    /// archive still waiting for its key), when the question cannot be answered yet.
+    /// </summary>
+    private static bool StoresPropertiesUnversioned(string gameRoot)
+    {
+        try
+        {
+            UnrealFileProvider provider = UnrealProviderSession.Open(gameRoot);
+            foreach (GameFile file in provider.Files.Values)
+            {
+                if (file.IsUePackage)
+                {
+                    return provider.LoadUncached(file) is AbstractUePackage package && package.HasFlags(EPackageFlags.PKG_UnversionedProperties);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.Warning(LogCategory.Import, $"[Unreal] Could not tell whether the build stores its properties unversioned: {exception.GetType().Name}: {exception.Message}");
+        }
+        return false;
     }
 
     private static ColumnTable SessionState(DataRequest request)
