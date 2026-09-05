@@ -13,7 +13,6 @@ public class EngineAssetsTpkHook : CommonHook, IHookModule
 
     public void OnApply()
     {
-        Registry.ApplyTypeHooks(GetType());
     }
 
     [RetargetMethod(typeof(EngineAssetsTpk), nameof(GetStream))]

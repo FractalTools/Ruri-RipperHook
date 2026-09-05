@@ -32,7 +32,6 @@ public class ForkClassGuidHook : CommonHook, IHookModule
 
     public void OnApply()
     {
-        Registry.ApplyTypeHooks(GetType());
     }
 
     [RetargetMethod(typeof(MetaPtr), nameof(MetaPtr.CreateMissingReference))]
