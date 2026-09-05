@@ -264,9 +264,10 @@ public sealed class UnrealValueWriter
     private static long Integer(object? value) => value switch
     {
         bool b => b ? 1 : 0,
-        byte or sbyte or short or ushort or int or uint or long or ulong => Convert.ToInt64(value),
+        ulong u => unchecked((long)u),
+        byte or sbyte or short or ushort or int or uint or long => Convert.ToInt64(value),
         float or double => (long)Convert.ToDouble(value),
-        Enum e => Convert.ToInt64(e),
+        Enum e => Enum.GetUnderlyingType(e.GetType()) == typeof(ulong) ? unchecked((long)Convert.ToUInt64(e)) : Convert.ToInt64(e),
         _ => 0,
     };
 
