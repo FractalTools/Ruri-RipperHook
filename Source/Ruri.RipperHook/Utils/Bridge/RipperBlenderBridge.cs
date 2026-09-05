@@ -1,4 +1,4 @@
-using AssetRipper.Assets;
+﻿using AssetRipper.Assets;
 using AssetRipper.Assets.Collections;
 using AssetRipper.Assets.Metadata;
 using Ruri.RipperHook.Tables;
@@ -1292,6 +1292,7 @@ public static class RipperBlenderBridge
         Dictionary<string, byte[]> assets = new(StringComparer.Ordinal);
         Dictionary<string, string> assetPaths = new(StringComparer.Ordinal);
         Dictionary<string, byte[]> other = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, bool> textureSrgb = new(StringComparer.Ordinal);
         List<string> roots = new();
         List<string> sceneRoots = new();
         Dictionary<string, string> pathToGuid = new(StringComparer.OrdinalIgnoreCase);
@@ -1338,6 +1339,11 @@ public static class RipperBlenderBridge
 
             assets[guid] = bytes;
             assetPaths[guid] = path;
+            bool? srgb = ExtractSrgb(metaBytes, utf8);
+            if (srgb.HasValue)
+            {
+                textureSrgb[guid] = srgb.Value;
+            }
             if (path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
             {
                 roots.Add(guid);
@@ -1486,7 +1492,7 @@ public static class RipperBlenderBridge
 
         return new ClosureResult(assets, other, roots.ToArray(), seedRoots, clipGuidsByCab,
             sceneRoots.ToArray(), clipCurveMeta, clipCurveData, meshBlobMeta, meshBlobData, rootCabs,
-            assetPaths, clipGuidByAssetKey, seedAssetGuids, graphMetaJson, graphPayload);
+            assetPaths, clipGuidByAssetKey, seedAssetGuids, textureSrgb, graphMetaJson, graphPayload);
     }
 
     private static Dictionary<string, string> BuildRootCabs(CabTable table,
@@ -1616,11 +1622,29 @@ public static class RipperBlenderBridge
     }
 
     private static readonly Regex GuidPattern = new(@"guid:\s*([0-9a-fA-F]{32})", RegexOptions.Compiled);
+    private static readonly Regex SrgbPattern = new(@"sRGBTexture:\s*(\d+)", RegexOptions.Compiled);
 
     private static string? ExtractGuid(byte[] metaBytes, UTF8Encoding utf8)
     {
         Match match = GuidPattern.Match(utf8.GetString(metaBytes));
         return match.Success ? match.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// Whether this asset's own bytes are sRGB-encoded, as the exported importer settings
+    /// state it -- the same fact Unity samples with (Texture2D.m_ColorSpace, written back out
+    /// as TextureImporter.sRGBTexture). Only a texture states it; everything else answers null.
+    ///
+    /// <para>A host must not decide this from the slot a texture is bound to. One texture can
+    /// be bound to two slots of opposite semantics (measured: an NRO map bound to both
+    /// _NormalMap and _EmissiveMap), and a host whose colour space lives on the shared image
+    /// then has the second binding silently overwrite the first. It must not decide it from
+    /// the name either: in one scene's 20 "_M" maps the flag splits 12 sRGB / 8 linear.</para>
+    /// </summary>
+    private static bool? ExtractSrgb(byte[] metaBytes, UTF8Encoding utf8)
+    {
+        Match match = SrgbPattern.Match(utf8.GetString(metaBytes));
+        return match.Success ? match.Groups[1].Value != "0" : null;
     }
 
 }
@@ -1688,6 +1712,7 @@ public sealed record ClosureResult(
     IReadOnlyDictionary<string, string> AssetPaths,
     IReadOnlyDictionary<string, string> ClipGuidByAssetKey,
     IReadOnlyDictionary<string, string> SeedAssetGuids,
+    IReadOnlyDictionary<string, bool> TextureSrgb,
     string GraphMetaJson,
     byte[] GraphPayload)
 {
@@ -1706,6 +1731,7 @@ public sealed record ClosureResult(
         new Dictionary<string, string>(),
         new Dictionary<string, string>(),
         new Dictionary<string, string>(),
+        new Dictionary<string, bool>(),
         string.Empty,
         Array.Empty<byte>());
 }
