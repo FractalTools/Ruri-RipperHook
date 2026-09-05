@@ -98,8 +98,35 @@ public sealed class AnimSequenceConverter : IUnrealConverter
             }
             tracks.Add(new ClipTrack { Path = rest.Path, Positions = positions, Rotations = rotations, Scales = scales });
         }
-        ClipBuilder.Fill(clip, sampleRate, frameCount, tracks, []);
+        ClipBuilder.Fill(clip, sampleRate, frameCount, tracks, [], Tolerance(source, conversion.Basis));
     }
+
+    /// <summary>
+    /// The precision the sequence was compressed at, as the tolerance its written curves keep:
+    /// the ACL codec that compressed it states an error threshold and the virtual vertex distance
+    /// that threshold is measured at (UAnimBoneCompressionCodec_ACLBase), so a key is dropped
+    /// only where the played curve stays within the displacement the game itself accepted. A
+    /// codec property the cooked object leaves unstated holds its class default, which is what
+    /// an unstated property means. A sequence compressed by anything else keeps every sample.
+    /// </summary>
+    private static ClipTolerance? Tolerance(UAnimSequence source, SourceBasis basis)
+    {
+        if (source.BoneCompressionSettings?.Load<UAnimBoneCompressionSettings>() is not { } settings
+            || settings.GetCodec(source.BoneCodecDDCHandle ?? string.Empty) is not { } codec
+            || !codec.ExportType.Contains(AclCodecMarker, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        float threshold = codec.GetOrDefault("ErrorThreshold", AclErrorThresholdCentimetres);
+        float vertexDistance = codec.GetOrDefault("DefaultVirtualVertexDistance", AclVirtualVertexDistanceCentimetres);
+        float displacement = threshold * basis.UnitScale;
+        float angular = threshold / vertexDistance;
+        return new ClipTolerance(displacement, angular, angular, displacement);
+    }
+
+    private const string AclCodecMarker = "ACL";
+    private const float AclErrorThresholdCentimetres = 0.01f;
+    private const float AclVirtualVertexDistanceCentimetres = 3f;
 
     /// <summary>
     /// The rate the sequence was sampled at, as the engine defines it: the platform target frame

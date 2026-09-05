@@ -51,7 +51,7 @@ public static class ClipBuilder
     private const float DefaultWeight = 1f / 3f;
 
     public static IAnimationClip Build(ConvertedPackage package, string name, string? originalPath, float sampleRate, int frameCount,
-        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks)
+        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks, ClipTolerance? tolerance = null)
     {
         ArgumentNullException.ThrowIfNull(package);
         if (sampleRate <= 0f)
@@ -64,12 +64,17 @@ public static class ClipBuilder
         }
 
         IAnimationClip clip = package.Create<IAnimationClip>(ClassIDType.AnimationClip, name, originalPath);
-        Fill(clip, sampleRate, frameCount, tracks, floatTracks);
+        Fill(clip, sampleRate, frameCount, tracks, floatTracks, tolerance);
         return clip;
     }
 
+    /// <summary>
+    /// Every track sampled once per frame; with a tolerance stated, each curve keeps only the
+    /// keys that reproduce its samples within it (see <see cref="CurveReducer"/>), with the
+    /// clip's length and rate untouched.
+    /// </summary>
     public static void Fill(IAnimationClip clip, float sampleRate, int frameCount,
-        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks)
+        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks, ClipTolerance? tolerance = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         if (sampleRate <= 0f)
@@ -105,23 +110,23 @@ public static class ClipBuilder
             if (track.Rotations is not null)
             {
                 Validate(track.Rotations.Length, frameCount, track.Path);
-                WriteRotation(clip, track.Path, track.Rotations, sampleRate);
+                WriteRotation(clip, track.Path, track.Rotations, sampleRate, tolerance?.RotationRadians);
             }
             if (track.Positions is not null)
             {
                 Validate(track.Positions.Length, frameCount, track.Path);
-                WriteVector(clip.PositionCurves_C74, clip.Collection.Version, track.Path, track.Positions, sampleRate);
+                WriteVector(clip.PositionCurves_C74, clip.Collection.Version, track.Path, track.Positions, sampleRate, tolerance?.Position);
             }
             if (track.Scales is not null)
             {
                 Validate(track.Scales.Length, frameCount, track.Path);
-                WriteVector(clip.ScaleCurves_C74, clip.Collection.Version, track.Path, track.Scales, sampleRate);
+                WriteVector(clip.ScaleCurves_C74, clip.Collection.Version, track.Path, track.Scales, sampleRate, tolerance?.Scale);
             }
         }
         foreach (ClipFloatTrack track in floatTracks)
         {
             Validate(track.Values.Length, frameCount, track.Path + "/" + track.Attribute);
-            WriteFloat(clip, track, sampleRate);
+            WriteFloat(clip, track, sampleRate, tolerance?.Float);
         }
     }
 
@@ -133,13 +138,15 @@ public static class ClipBuilder
         }
     }
 
-    private static void WriteRotation(IAnimationClip clip, string path, Quaternion[] rotations, float sampleRate)
+    private static void WriteRotation(IAnimationClip clip, string path, Quaternion[] rotations, float sampleRate, float? tolerance)
     {
         AlignHemispheres(rotations);
         IQuaternionCurve curve = clip.RotationCurves_C74.AddNew();
         curve.SetValues(path);
-        int count = rotations.Length;
-        for (int frame = 0; frame < count; frame++)
+        int[] kept = tolerance is null
+            ? CurveReducer.All(rotations.Length)
+            : CurveReducer.Keep(rotations.Length, tolerance.Value, (first, last, sample) => RotationError(rotations, first, last, sample, sampleRate));
+        foreach (int frame in kept)
         {
             Quaternion value = rotations[frame];
             Quaternion inSlope = Slope(rotations, frame, sampleRate, incoming: true);
@@ -157,12 +164,14 @@ public static class ClipBuilder
     }
 
     private static void WriteVector(AssetRipper.Assets.Generics.AccessListBase<IVector3Curve> curves, AssetRipper.Primitives.UnityVersion version,
-        string path, Vector3[] values, float sampleRate)
+        string path, Vector3[] values, float sampleRate, float? tolerance)
     {
         IVector3Curve curve = curves.AddNew();
         curve.SetValues(path);
-        int count = values.Length;
-        for (int frame = 0; frame < count; frame++)
+        int[] kept = tolerance is null
+            ? CurveReducer.All(values.Length)
+            : CurveReducer.Keep(values.Length, tolerance.Value, (first, last, sample) => VectorError(values, first, last, sample, sampleRate));
+        foreach (int frame in kept)
         {
             Vector3 value = values[frame];
             Vector3 inSlope = Slope(values, frame, sampleRate, incoming: true);
@@ -179,14 +188,17 @@ public static class ClipBuilder
         }
     }
 
-    private static void WriteFloat(IAnimationClip clip, ClipFloatTrack track, float sampleRate)
+    private static void WriteFloat(IAnimationClip clip, ClipFloatTrack track, float sampleRate, float? tolerance)
     {
         IFloatCurve curve = clip.FloatCurves_C74.AddNew();
         curve.Path = track.Path;
         curve.Attribute = track.Attribute;
         curve.ClassID = (int)track.TargetClass;
         float[] values = track.Values;
-        for (int frame = 0; frame < values.Length; frame++)
+        int[] kept = tolerance is null
+            ? CurveReducer.All(values.Length)
+            : CurveReducer.Keep(values.Length, tolerance.Value, (first, last, sample) => FloatError(values, first, last, sample, sampleRate));
+        foreach (int frame in kept)
         {
             IKeyframe_Single key = curve.Curve.Curve.AddNew();
             key.Time = frame / sampleRate;
@@ -198,6 +210,42 @@ public static class ClipBuilder
             key.InWeight = DefaultWeight;
             key.OutWeight = DefaultWeight;
         }
+    }
+
+    private static float RotationError(Quaternion[] rotations, int first, int last, int sample, float sampleRate)
+    {
+        float span = (last - first) / sampleRate;
+        float fraction = (float)(sample - first) / (last - first);
+        Quaternion firstSlope = Slope(rotations, first, sampleRate, incoming: false);
+        Quaternion lastSlope = Slope(rotations, last, sampleRate, incoming: true);
+        Quaternion played = Quaternion.Normalize(new Quaternion(
+            CurveReducer.Hermite(rotations[first].X, firstSlope.X, rotations[last].X, lastSlope.X, span, fraction),
+            CurveReducer.Hermite(rotations[first].Y, firstSlope.Y, rotations[last].Y, lastSlope.Y, span, fraction),
+            CurveReducer.Hermite(rotations[first].Z, firstSlope.Z, rotations[last].Z, lastSlope.Z, span, fraction),
+            CurveReducer.Hermite(rotations[first].W, firstSlope.W, rotations[last].W, lastSlope.W, span, fraction)));
+        float dot = MathF.Min(1f, MathF.Abs(Quaternion.Dot(played, rotations[sample])));
+        return 2f * MathF.Acos(dot);
+    }
+
+    private static float VectorError(Vector3[] values, int first, int last, int sample, float sampleRate)
+    {
+        float span = (last - first) / sampleRate;
+        float fraction = (float)(sample - first) / (last - first);
+        Vector3 firstSlope = Slope(values, first, sampleRate, incoming: false);
+        Vector3 lastSlope = Slope(values, last, sampleRate, incoming: true);
+        Vector3 played = new(
+            CurveReducer.Hermite(values[first].X, firstSlope.X, values[last].X, lastSlope.X, span, fraction),
+            CurveReducer.Hermite(values[first].Y, firstSlope.Y, values[last].Y, lastSlope.Y, span, fraction),
+            CurveReducer.Hermite(values[first].Z, firstSlope.Z, values[last].Z, lastSlope.Z, span, fraction));
+        return Vector3.Distance(played, values[sample]);
+    }
+
+    private static float FloatError(float[] values, int first, int last, int sample, float sampleRate)
+    {
+        float span = (last - first) / sampleRate;
+        float fraction = (float)(sample - first) / (last - first);
+        float played = CurveReducer.Hermite(values[first], Slope(values, first, sampleRate, incoming: false), values[last], Slope(values, last, sampleRate, incoming: true), span, fraction);
+        return MathF.Abs(played - values[sample]);
     }
 
     private static void AlignHemispheres(Quaternion[] rotations)
