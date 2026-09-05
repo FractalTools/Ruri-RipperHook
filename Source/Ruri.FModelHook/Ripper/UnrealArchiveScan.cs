@@ -26,7 +26,7 @@ public static class UnrealArchiveScan
 
     public static List<(string Cab, string FileName, List<string> Deps, List<int> ClassIds, List<string> Paths)> ScanFull(string archivePath)
     {
-        DefaultFileProvider provider = UnrealProviderSession.Current;
+        UnrealFileProvider provider = UnrealProviderSession.Current;
         IAesVfsReader? reader = FindReader(provider, archivePath);
         List<(string, string, List<string>, List<int>, List<string>)> rows = new();
         if (reader is null)
@@ -74,6 +74,7 @@ public static class UnrealArchiveScan
                 rows.Add(row.Value);
             }
         }
+        provider.Release();
         Logger.Info(LogCategory.Import, $"[Unreal] Scanned '{reader.Name}': {packages.Count} packages, {rows.Count} rows.");
         return rows;
     }
@@ -101,7 +102,7 @@ public static class UnrealArchiveScan
         return index;
     }
 
-    private static (string, string, List<string>, List<int>, List<string>) Row(DefaultFileProvider provider, IAesVfsReader reader,
+    private static (string, string, List<string>, List<int>, List<string>) Row(UnrealFileProvider provider, IAesVfsReader reader,
         Dictionary<FPackageId, int>? storeIndex, TypeMappings? mappings, GameFile file)
     {
         List<string> dependencies = new();
@@ -120,7 +121,7 @@ public static class UnrealArchiveScan
                     }
                 }
             }
-            IPackage package = provider.LoadPackage(file);
+            IPackage package = provider.LoadUncached(file);
             if (package is IoPackage ioPackage)
             {
                 foreach (FExportMapEntry export in ioPackage.ExportMap)
@@ -132,7 +133,7 @@ public static class UnrealArchiveScan
         }
         else
         {
-            IPackage package = provider.LoadPackage(file);
+            IPackage package = provider.LoadUncached(file);
             if (package is Package pakPackage)
             {
                 foreach (FObjectImport import in pakPackage.ImportMap)

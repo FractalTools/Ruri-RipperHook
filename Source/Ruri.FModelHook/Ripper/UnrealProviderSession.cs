@@ -18,7 +18,7 @@ namespace Ruri.FModelHook.Ripper;
 public static class UnrealProviderSession
 {
     private static readonly object Gate = new();
-    private static DefaultFileProvider? provider;
+    private static UnrealFileProvider? provider;
     private static string fingerprint = string.Empty;
 
     static UnrealProviderSession()
@@ -28,9 +28,9 @@ public static class UnrealProviderSession
 
     public static bool IsOpen => provider is not null;
 
-    public static DefaultFileProvider Current => Open(Session.GameRoot);
+    public static UnrealFileProvider Current => Open(Session.GameRoot);
 
-    public static DefaultFileProvider Open(string gameRoot)
+    public static UnrealFileProvider Open(string gameRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRoot);
         string wanted = gameRoot + "\n" + UnrealSourceOptions.Fingerprint();
@@ -109,7 +109,7 @@ public static class UnrealProviderSession
         }
     }
 
-    private static DefaultFileProvider Mount(string gameRoot)
+    private static UnrealFileProvider Mount(string gameRoot)
     {
         EnsureCodecs();
         string[] pakFolders = UnrealInstall.PakFolders(gameRoot);
@@ -135,7 +135,7 @@ public static class UnrealProviderSession
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(static path => new DirectoryInfo(path))
             .ToArray();
-        DefaultFileProvider mounted = new(new DirectoryInfo(pakFolders[0]), extra, SearchOption.AllDirectories, versions, StringComparer.OrdinalIgnoreCase);
+        UnrealFileProvider mounted = new(new DirectoryInfo(pakFolders[0]), extra, SearchOption.AllDirectories, versions, StringComparer.OrdinalIgnoreCase);
         mounted.ReadScriptData = false;
         mounted.ReadShaderMaps = UnrealSourceOptions.Flag(UnrealSourceOptions.ReadShaderMaps);
         mounted.ReadNaniteData = true;

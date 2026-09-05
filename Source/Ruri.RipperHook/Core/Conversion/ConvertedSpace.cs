@@ -23,6 +23,9 @@ public sealed class ConvertedSpace
 
     public ProcessedBundle Bundle { get; }
 
+    /// <summary>Where an asset's bytes wait to be fetched at export instead of being held (see <see cref="DeferredResource"/>).</summary>
+    public DeferredResource Deferred { get; }
+
     public UnityVersion Version { get; }
 
     public ConvertedSpace(GameBundle gameBundle, string bundleName, UnityVersion version)
@@ -31,6 +34,7 @@ public sealed class ConvertedSpace
         GameBundle = gameBundle;
         Version = version;
         Bundle = gameBundle.AddNewProcessedBundle(bundleName);
+        Deferred = new DeferredResource(Bundle);
     }
 
     public IEnumerable<ConvertedPackage> Packages => packages.Values;

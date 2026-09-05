@@ -23,13 +23,13 @@ public sealed class UnrealLoadShared
     private readonly ConcurrentDictionary<string, IMonoScript> scripts = new(StringComparer.Ordinal);
     private readonly object scriptGate = new();
 
-    public UnrealLoadShared(DefaultFileProvider provider, ConvertedPackage scriptPackage)
+    public UnrealLoadShared(UnrealFileProvider provider, ConvertedPackage scriptPackage)
     {
         Provider = provider;
         ScriptPackage = scriptPackage;
     }
 
-    public DefaultFileProvider Provider { get; }
+    public UnrealFileProvider Provider { get; }
 
     public ConvertedPackage ScriptPackage { get; }
 
@@ -52,7 +52,9 @@ public sealed class UnrealLoadShared
 /// every package allocates its assets in parallel, then every package fills them in parallel,
 /// so a reference from any export to any other resolves without ordering the packages. What
 /// counts as "asked for" is the archive files handed over, narrowed by the include predicate
-/// the cabmap closure states.
+/// the cabmap closure states. A package is let go the moment its assets are filled: the
+/// provider forgets it and the loader drops its objects, so what stays in memory is the Unity
+/// side plus whatever a package still being filled reaches into.
 /// </summary>
 public static class UnrealPackageLoader
 {
@@ -72,7 +74,7 @@ public static class UnrealPackageLoader
     public static void Load(GameBundle bundle, IEnumerable<string> archivePaths, Func<string, bool>? include)
     {
         ArgumentNullException.ThrowIfNull(bundle);
-        DefaultFileProvider provider = UnrealProviderSession.Current;
+        UnrealFileProvider provider = UnrealProviderSession.Current;
         List<GameFile> admitted = Admitted(provider, archivePaths, include);
         if (admitted.Count == 0)
         {
@@ -80,9 +82,11 @@ public static class UnrealPackageLoader
             return;
         }
 
+        long startHeap = GC.GetTotalMemory(true);
         Stopwatch phase = Stopwatch.StartNew();
         UnrealTypeTree.Ensure(provider, ProjectVersion);
         long schemaMs = phase.ElapsedMilliseconds;
+        long schemaHeap = GC.GetTotalMemory(true);
 
         ConvertedSpace space = new(bundle, BundleName, ProjectVersion);
         UnrealAssetTable table = new();
@@ -122,6 +126,7 @@ public static class UnrealPackageLoader
             }
         });
         long allocateMs = phase.ElapsedMilliseconds;
+        long allocateHeap = GC.GetTotalMemory(true);
 
         phase.Restart();
         int failedExports = 0;
@@ -144,10 +149,15 @@ public static class UnrealPackageLoader
                     Logger.Warning(LogCategory.Import, $"[Unreal] Fill {conversion.PackagePath}:{export.Name} ({export.ExportType}): {exception.GetType().Name}: {exception.Message}");
                 }
             }
+            conversions[index] = null;
+            exports[index] = null!;
+            provider.Forget(admitted[index].Path);
         });
+        provider.Release();
         Logger.Info(LogCategory.Import,
             $"[Unreal] packages={admitted.Count} failedPackages={failedPackages} assets={table.Count} failedExports={failedExports} "
-            + $"schema={schemaMs}ms allocate={allocateMs}ms fill={phase.ElapsedMilliseconds}ms");
+            + $"schema={schemaMs}ms allocate={allocateMs}ms fill={phase.ElapsedMilliseconds}ms "
+            + $"heapAtStart={startHeap >> 20}MB heapAfterSchema={schemaHeap >> 20}MB heapAfterAllocate={allocateHeap >> 20}MB heapAfterFill={GC.GetTotalMemory(true) >> 20}MB peakWorkingSet={Process.GetCurrentProcess().PeakWorkingSet64 >> 20}MB");
     }
 
     private static List<GameFile> Admitted(DefaultFileProvider provider, IEnumerable<string> archivePaths, Func<string, bool>? include)

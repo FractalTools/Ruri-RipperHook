@@ -2,6 +2,7 @@ using AssetRipper.Import.Logging;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Enums;
+using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse_Conversion.Textures;
@@ -89,15 +90,20 @@ public sealed class TextureConverter : IUnrealConverter
         ETexturePlatform platform = UnrealSourceOptions.TexturePlatformChoice();
         if (platform == ETexturePlatform.DesktopMobile
             && Cooked.TryGetValue(source.Format, out Layout cooked)
-            && source.GetFirstMip() is { BulkData.Data: { } raw } mip)
+            && source.GetFirstMip() is { } mip)
         {
             int expected = Blocks(mip.SizeX, cooked.BlockWidth) * Blocks(mip.SizeY, cooked.BlockHeight) * cooked.BlockBytes;
-            if (raw.Length < expected)
+            int available = mip.BulkData.Header.ElementCount;
+            if (available < expected)
             {
-                Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} holds {raw.Length} bytes for {mip.SizeX}x{mip.SizeY} {source.Format}; {expected} were expected.");
+                Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} holds {available} bytes for {mip.SizeX}x{mip.SizeY} {source.Format}; {expected} were expected.");
                 return;
             }
-            Store(texture, source, mip.SizeX, mip.SizeY, cooked.Format, raw.Length == expected ? raw : raw[..expected]);
+            UnrealFileProvider provider = conversion.Shared.Provider;
+            string packagePath = conversion.PackagePath;
+            string exportName = export.Name;
+            TextureBuilder.Defer(texture, Shape(source, mip.SizeX, mip.SizeY, cooked.Format, []), expected, conversion.Package.Space.Deferred,
+                () => CookedBytes(provider, packagePath, exportName, expected));
             return;
         }
 
@@ -119,14 +125,36 @@ public sealed class TextureConverter : IUnrealConverter
             Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}:{export.Name} decoded to {data.Length} bytes for {decoded.Width}x{decoded.Height} {decoded.PixelFormat}.");
             return;
         }
-        Store(texture, source, decoded.Width, decoded.Height, layout.Format, data.Length == size ? data : data[..size]);
+        TextureBuilder.Fill(texture, Shape(source, decoded.Width, decoded.Height, layout.Format, data.Length == size ? data : data[..size]));
+    }
+
+    /// <summary>
+    /// The first mip's cooked bytes, read from the archive when the exporter asks for them
+    /// through a package instance nobody keeps, so no texture is held between fill and export.
+    /// </summary>
+    private static byte[] CookedBytes(UnrealFileProvider provider, string packagePath, string exportName, int expected)
+    {
+        if (provider.LoadUncached(provider[packagePath]) is not AbstractUePackage package)
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath} is not a package with exports.");
+        }
+        int index = package.GetExportIndex(exportName);
+        if (index < 0 || package.ExportsLazy[index].Value is not UTexture2D source || source.GetFirstMip() is not { BulkData.Data: { } raw })
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} no longer yields its first mip.");
+        }
+        if (raw.Length < expected)
+        {
+            throw new InvalidDataException($"[Unreal] {packagePath}:{exportName} holds {raw.Length} bytes, {expected} were reserved.");
+        }
+        return raw.Length == expected ? raw : raw[..expected];
     }
 
     private static int Blocks(int texels, int block) => (texels + block - 1) / block;
 
-    private static void Store(ITexture2D texture, UTexture2D source, int width, int height, TextureFormat format, byte[] data)
+    private static TexturePixels Shape(UTexture2D source, int width, int height, TextureFormat format, byte[] data)
     {
-        TextureBuilder.Fill(texture, new TexturePixels
+        return new TexturePixels
         {
             Width = width,
             Height = height,
@@ -137,6 +165,6 @@ public sealed class TextureConverter : IUnrealConverter
             IsNormalMap = source.IsNormalMap,
             RepeatU = source.GetTextureAddressX() == TextureAddress.TA_Wrap,
             RepeatV = source.GetTextureAddressY() == TextureAddress.TA_Wrap,
-        });
+        };
     }
 }

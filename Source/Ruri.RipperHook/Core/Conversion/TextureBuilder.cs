@@ -1,3 +1,4 @@
+using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Enums;
@@ -73,6 +74,44 @@ public static class TextureBuilder
         return texture;
     }
 
+    /// <summary>
+    /// The texture described by <paramref name="pixels"/> with its bytes fetched at export: the
+    /// description carries no data, <paramref name="size"/> bytes are reserved in the load's
+    /// deferred resource and <paramref name="fetch"/> produces them when the exporter asks, so
+    /// the texture costs nothing to hold.
+    /// </summary>
+    public static void Defer(ITexture2D texture, TexturePixels pixels, long size, DeferredResource resource, Func<byte[]> fetch)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        ArgumentNullException.ThrowIfNull(pixels);
+        ArgumentNullException.ThrowIfNull(resource);
+        if (pixels.Data.Length != 0)
+        {
+            throw new ArgumentException("A deferred texture describes its data, it does not carry it.", nameof(pixels));
+        }
+        if (!texture.Has_StreamData_C28())
+        {
+            throw new NotSupportedException($"[TextureBuilder] Unity {texture.Collection.Version} keeps no stream data on a Texture2D.");
+        }
+        Fill(texture, pixels);
+        SetCompleteImageSize(texture, size);
+        texture.StreamData_C28!.Path = DeferredResource.FileName;
+        texture.StreamData_C28.SetOffset((ulong)resource.Reserve(size, fetch));
+        texture.StreamData_C28.Size = (uint)size;
+    }
+
+    private static void SetCompleteImageSize(ITexture2D texture, long size)
+    {
+        if (texture.Has_CompleteImageSize_C28_Int32())
+        {
+            texture.CompleteImageSize_C28_Int32 = checked((int)size);
+        }
+        if (texture.Has_CompleteImageSize_C28_UInt32())
+        {
+            texture.CompleteImageSize_C28_UInt32 = checked((uint)size);
+        }
+    }
+
     public static void Fill(ITexture2D texture, TexturePixels pixels)
     {
         ArgumentNullException.ThrowIfNull(texture);
@@ -85,14 +124,7 @@ public static class TextureBuilder
         {
             TextureOrientation.MarkTopDown(texture);
         }
-        if (texture.Has_CompleteImageSize_C28_Int32())
-        {
-            texture.CompleteImageSize_C28_Int32 = pixels.Data.Length;
-        }
-        if (texture.Has_CompleteImageSize_C28_UInt32())
-        {
-            texture.CompleteImageSize_C28_UInt32 = (uint)pixels.Data.Length;
-        }
+        SetCompleteImageSize(texture, pixels.Data.Length);
         texture.MipCount_C28 = 1;
         if (texture.Has_MipMap_C28())
         {
