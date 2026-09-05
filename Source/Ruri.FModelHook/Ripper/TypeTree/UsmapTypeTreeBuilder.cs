@@ -31,7 +31,7 @@ public sealed class UsmapTypeTreeBuilder
     /// <summary>The Unity layout every converted asset -- and every schema class -- is emitted at.</summary>
     public static readonly UnityVersion LayoutVersion = new(2022, 3, 62, UnityVersionType.Final, 1);
 
-    private const int NodeBudget = 60000;
+    private const int NodeBudget = 8192;
     private const int NestingLimit = 10;
 
     private static readonly IReadOnlyDictionary<string, string> LeafTypeNames = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -69,6 +69,10 @@ public sealed class UsmapTypeTreeBuilder
     private readonly List<TpkTypeTreeBlob> blobs = new();
     private readonly Dictionary<string, int> classIds = new(StringComparer.Ordinal);
     private readonly UnityVersion ordinalVersion = TypeTreeOrdinal.ToUnityVersion(0);
+    private readonly Dictionary<(string Struct, int Depth), ushort[]> structChildren = new();
+    private readonly Dictionary<string, ushort[]> classFields = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ushort> stringIndices = new(StringComparer.Ordinal);
+    private readonly Dictionary<NodeKey, ushort> nodeIndices = new();
     private TpkTypeTreeBlob current;
 
     private UsmapTypeTreeBuilder(TypeMappings mappings)
@@ -108,8 +112,8 @@ public sealed class UsmapTypeTreeBuilder
 
             TpkUnityClass unityClass = new()
             {
-                Name = current.StringBuffer.AddString(name),
-                Base = current.StringBuffer.AddString(schema.SuperType ?? string.Empty),
+                Name = Intern(name),
+                Base = Intern(schema.SuperType ?? string.Empty),
                 Flags = TpkUnityClassFlags.HasReleaseRootNode | TpkUnityClassFlags.HasEditorRootNode,
             };
             ushort root = ClassRoot(name, schema);
@@ -125,6 +129,10 @@ public sealed class UsmapTypeTreeBuilder
 
     private TpkTypeTreeBlob NewBlob()
     {
+        structChildren.Clear();
+        classFields.Clear();
+        stringIndices.Clear();
+        nodeIndices.Clear();
         TpkTypeTreeBlob blob = new();
         blob.Versions.Add(ordinalVersion);
         blob.CommonString.Add(UnityVersion.MinVersion, []);
@@ -149,15 +157,43 @@ public sealed class UsmapTypeTreeBuilder
             Pointer("PPtr<MonoScript>", "m_Script"),
             String("m_Name"),
         };
-        foreach ((PropertyInfo property, _) in Chain(schema))
+        children.AddRange(ClassFields(name, schema, new HashSet<string>(StringComparer.Ordinal) { name }));
+        return Node(name, RootNodeName, children, TransferMetaFlags.NoTransferFlags);
+    }
+
+    /// <summary>
+    /// A class's fields in serialization order -- its ancestors' first -- built once per blob:
+    /// every subclass shares its parent's node list and adds only its own properties, so the
+    /// flat roots Unity wants cost one build per property, not one per class that inherits it.
+    /// Duplicate slot names within one owner (a static array's clones) collapse as they always did.
+    /// </summary>
+    private ushort[] ClassFields(string name, Struct schema, HashSet<string> chain)
+    {
+        if (classFields.TryGetValue(name, out ushort[]? cached))
         {
-            ushort? node = Property(property, 0);
+            return cached;
+        }
+        List<ushort> fields = new();
+        if (schema.SuperType is not null && mappings.Types.TryGetValue(schema.SuperType, out Struct? super) && chain.Add(schema.SuperType))
+        {
+            fields.AddRange(ClassFields(schema.SuperType, super, chain));
+        }
+        HashSet<string> emitted = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<int, PropertyInfo> slot in schema.Properties.OrderBy(static pair => pair.Key))
+        {
+            if (!emitted.Add(slot.Value.Name))
+            {
+                continue;
+            }
+            ushort? node = Property(slot.Value, 0);
             if (node is not null)
             {
-                children.Add(node.Value);
+                fields.Add(node.Value);
             }
         }
-        return Node(name, RootNodeName, children, TransferMetaFlags.NoTransferFlags);
+        ushort[] result = fields.ToArray();
+        classFields[name] = result;
+        return result;
     }
 
     /// <summary>The struct's properties in serialization order: the root-most ancestor's first.</summary>
@@ -231,25 +267,45 @@ public sealed class UsmapTypeTreeBuilder
         return null;
     }
 
+    /// <summary>
+    /// A struct's subtree depends only on the struct and how deep it sits (the nesting limit
+    /// truncates by depth), never on the field it is named by, so its children are built once
+    /// per blob and shared by every field of that struct at that depth.
+    /// </summary>
     private ushort? StructNode(string structName, string nodeName, int depth)
     {
         if (structName.Length == 0 || depth >= NestingLimit)
         {
             return null;
         }
-        List<ushort> children = new();
-        if (mappings.Types.TryGetValue(structName, out Struct? schema))
+        if (!structChildren.TryGetValue((structName, depth), out ushort[]? children))
         {
-            foreach ((PropertyInfo property, _) in Chain(schema))
+            List<ushort> built = new();
+            if (mappings.Types.TryGetValue(structName, out Struct? schema))
             {
-                ushort? child = Property(property, depth + 1);
-                if (child is not null)
+                foreach ((PropertyInfo property, _) in Chain(schema))
                 {
-                    children.Add(child.Value);
+                    ushort? child = Property(property, depth + 1);
+                    if (child is not null)
+                    {
+                        built.Add(child.Value);
+                    }
                 }
             }
+            children = built.ToArray();
+            structChildren[(structName, depth)] = children;
         }
         return Node(structName, nodeName, children, TransferMetaFlags.NoTransferFlags);
+    }
+
+    private ushort Intern(string value)
+    {
+        if (!stringIndices.TryGetValue(value, out ushort index))
+        {
+            index = current.StringBuffer.AddString(value);
+            stringIndices[value] = index;
+        }
+        return index;
     }
 
     private ushort Leaf(string typeName, string nodeName, TransferMetaFlags flags)
@@ -285,16 +341,61 @@ public sealed class UsmapTypeTreeBuilder
         return Node("map", nodeName, [array], TransferMetaFlags.NoTransferFlags);
     }
 
-    private ushort Node(string typeName, string nodeName, List<ushort> children, TransferMetaFlags flags)
+    private ushort Node(string typeName, string nodeName, IReadOnlyList<ushort> children, TransferMetaFlags flags)
     {
         TpkUnityNode node = new()
         {
-            TypeName = current.StringBuffer.AddString(typeName),
-            Name = current.StringBuffer.AddString(nodeName),
+            TypeName = Intern(typeName),
+            Name = Intern(nodeName),
             Version = 1,
             MetaFlag = (uint)flags,
             SubNodes = children.Count == 0 ? Array.Empty<ushort>() : children.ToArray(),
         };
-        return current.NodeBuffer.AddNode(node);
+        NodeKey key = new(node.TypeName, node.Name, node.Version, node.MetaFlag, node.SubNodes);
+        if (!nodeIndices.TryGetValue(key, out ushort index))
+        {
+            index = current.NodeBuffer.AddNode(node);
+            nodeIndices[key] = index;
+        }
+        return index;
+    }
+
+    /// <summary>
+    /// A node's identity for the memo in front of the blob's own buffer: the buffer deduplicates
+    /// too, but by a search whose cost grows with the buffer, and a schema of ten thousand classes
+    /// asks it a quarter of a million times.
+    /// </summary>
+    private readonly struct NodeKey : IEquatable<NodeKey>
+    {
+        private readonly ushort typeName;
+        private readonly ushort name;
+        private readonly int version;
+        private readonly uint metaFlag;
+        private readonly ushort[] children;
+        private readonly int hash;
+
+        public NodeKey(ushort typeName, ushort name, int version, uint metaFlag, ushort[] children)
+        {
+            this.typeName = typeName;
+            this.name = name;
+            this.version = version;
+            this.metaFlag = metaFlag;
+            this.children = children;
+            HashCode code = new();
+            code.Add(typeName);
+            code.Add(name);
+            code.Add(version);
+            code.Add(metaFlag);
+            code.AddBytes(System.Runtime.InteropServices.MemoryMarshal.AsBytes(children.AsSpan()));
+            hash = code.ToHashCode();
+        }
+
+        public bool Equals(NodeKey other) =>
+            hash == other.hash && typeName == other.typeName && name == other.name && version == other.version
+            && metaFlag == other.metaFlag && children.AsSpan().SequenceEqual(other.children);
+
+        public override bool Equals(object? obj) => obj is NodeKey other && Equals(other);
+
+        public override int GetHashCode() => hash;
     }
 }

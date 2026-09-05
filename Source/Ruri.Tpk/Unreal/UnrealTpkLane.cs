@@ -36,14 +36,17 @@ internal static class UnrealTpkLane
         Console.WriteLine($"[Unreal] mappings={usmapPath}");
         Console.WriteLine($"[Unreal] output={outputPath}");
 
+        System.Diagnostics.Stopwatch phase = System.Diagnostics.Stopwatch.StartNew();
         UsmapParser parser = new(usmapPath);
         if (parser.Mappings is null)
         {
             throw new InvalidDataException($"[Unreal] {usmapPath} holds no mappings.");
         }
-        Console.WriteLine($"[Unreal] usmap version={parser.Version} structs={parser.Mappings.Types.Count} enums={parser.Mappings.Enums.Count}");
+        Console.WriteLine($"[Unreal] usmap version={parser.Version} structs={parser.Mappings.Types.Count} enums={parser.Mappings.Enums.Count} ({phase.ElapsedMilliseconds} ms)");
 
+        phase.Restart();
         UsmapTypeTreeBuilder builder = UsmapTypeTreeBuilder.Build(parser.Mappings);
+        Console.WriteLine($"[Unreal] type trees built ({phase.ElapsedMilliseconds} ms)");
         string lineageKey = ((int)CustomEngineType.UnrealEngine).ToString(CultureInfo.InvariantCulture);
 
         TpkCollectionBlob collection = new();
