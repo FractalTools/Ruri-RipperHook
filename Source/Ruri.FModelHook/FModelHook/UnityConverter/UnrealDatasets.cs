@@ -44,7 +44,9 @@ public static class UnrealDatasets
 
         Datasets.Publish(SessionId, DataRole.Session, [],
             "The mounted Unreal session: project, engine, archive and file counts, whether a property "
-            + "schema (.usmap) is loaded, and how many archives still wait for a key.",
+            + "schema (.usmap) is loaded, how many archives still wait for a key, and how many metres "
+            + "one of the engine's own units is, so a host can state a world's size without keeping "
+            + "its own copy of that scale.",
             SessionState);
 
         Datasets.Publish(ArchivesId, DataRole.Diagnostic, [],
@@ -58,7 +60,8 @@ public static class UnrealDatasets
             Actors);
         Datasets.Publish(WorldsId, DataRole.SceneList, [],
             "Every world the install ships outside a World Partition's generated folder: its package, whether its "
-            + "persistent level is partitioned, and how many streaming cells a partitioned one lists.",
+            + "persistent level is partitioned, how many streaming cells a partitioned one lists, and the ground "
+            + "those cells cover in Unreal units -- the union of their bounds, zero for a world with none.",
             Worlds);
         Datasets.Publish(WorldCellsId, DataRole.PlaceList,
             [DataParam.Text(WorldParam), DataParam.Real(MinXParam, required: false), DataParam.Real(MinYParam, required: false),
@@ -120,7 +123,7 @@ public static class UnrealDatasets
 
     private static ColumnTable Worlds(DataRequest request)
     {
-        TableBuilder table = new(WorldsId, "world", "name", "partitioned", "cells#");
+        TableBuilder table = new(WorldsId, "world", "name", "partitioned", "cells#", "minX#", "minY#", "maxX#", "maxY#");
         UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
         string generatedMarker = "/" + UnrealWorldPartition.GeneratedFolder + "/";
         foreach (GameFile file in provider.Files.Values.OrderBy(static file => file.Path, StringComparer.OrdinalIgnoreCase))
@@ -131,8 +134,19 @@ public static class UnrealDatasets
                 continue;
             }
             bool partitioned = UnrealWorldPartition.IsPartitioned(provider, file);
-            int cells = partitioned ? UnrealWorldPartition.Cells(provider, file.Path).Count : 0;
-            table.Row(file.Path, file.NameWithoutExtension, partitioned ? "1" : "0", cells);
+            IReadOnlyList<UnrealWorldCell> cells = partitioned ? UnrealWorldPartition.Cells(provider, file.Path) : [];
+            double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
+            double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
+            foreach (UnrealWorldCell cell in cells)
+            {
+                minX = Math.Min(minX, cell.Bounds.Min.X);
+                minY = Math.Min(minY, cell.Bounds.Min.Y);
+                maxX = Math.Max(maxX, cell.Bounds.Max.X);
+                maxY = Math.Max(maxY, cell.Bounds.Max.Y);
+            }
+            bool bounded = minX <= maxX && minY <= maxY;
+            table.Row(file.Path, file.NameWithoutExtension, partitioned ? "1" : "0", cells.Count,
+                bounded ? minX : 0, bounded ? minY : 0, bounded ? maxX : 0, bounded ? maxY : 0);
         }
         return table.Build();
     }
@@ -231,7 +245,7 @@ public static class UnrealDatasets
     private static ColumnTable SessionState(DataRequest request)
     {
         TableBuilder table = new(SessionId, "project", "displayName", "engine", "engineVersion", "files#", "archives#",
-            "mounted#", "missingKeys#", "mappings", "structs#");
+            "mounted#", "missingKeys#", "mappings", "structs#", "unitScale#");
         DefaultFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
         string[] pakFolders = UnrealInstall.PakFolders(request.GameRoot);
         table.Row(
@@ -244,7 +258,8 @@ public static class UnrealDatasets
             provider.MountedVfs.Count,
             provider.RequiredKeys.Count,
             UnrealSourceOptions.Text(UnrealSourceOptions.Mappings),
-            provider.MappingsForGame?.Types.Count ?? 0);
+            provider.MappingsForGame?.Types.Count ?? 0,
+            UnrealPackageLoader.Basis.UnitScale);
         return table.Build();
     }
 
