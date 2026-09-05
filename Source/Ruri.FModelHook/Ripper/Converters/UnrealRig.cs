@@ -1,6 +1,8 @@
 using AssetRipper.SourceGenerated.Classes.ClassID_1;
 using AssetRipper.SourceGenerated.Classes.ClassID_4;
 using AssetRipper.SourceGenerated.Extensions;
+using CUE4Parse.UE4.Assets.Exports.Animation;
+using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse_Conversion.Dto;
 using Ruri.RipperHook.Conversion;
@@ -36,6 +38,18 @@ public sealed class UnrealRig
                 ? Matrix4x4.Transpose(inverse)
                 : Matrix4x4.Identity;
         }
+    }
+
+    /// <summary>The rig a skeletal mesh states: its reference skeleton, bone by bone in the mesh's own order.</summary>
+    public static UnrealRig From(USkeletalMesh mesh, SourceBasis basis)
+    {
+        FReferenceSkeleton skeleton = mesh.ReferenceSkeleton;
+        MeshBoneDto[] bones = new MeshBoneDto[skeleton.FinalRefBonePose.Length];
+        for (int i = 0; i < bones.Length; i++)
+        {
+            bones[i] = new MeshBoneDto(skeleton.FinalRefBoneInfo[i], skeleton.FinalRefBonePose[i]);
+        }
+        return From(bones, basis);
     }
 
     public static UnrealRig From(IReadOnlyList<MeshBoneDto> source, SourceBasis basis)

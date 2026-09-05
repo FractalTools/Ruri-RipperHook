@@ -28,6 +28,8 @@ public static class ClosureReader
 
         HashSet<string> loadFilter = closure.LoadFilterFileNames;
         GameBundleHook.LoadIncludeFile = loadFilter.Count > 0 ? name => loadFilter.Contains(name) : null;
+        HashSet<string> seedFiles = closure.SeedFileNames;
+        GameBundleHook.LoadSeedFile = seedFiles.Count > 0 ? name => seedFiles.Contains(name) : null;
         try
         {
             return new ExportHandler(settings).Load(closure.Files, LocalFileSystem.Instance);
@@ -35,6 +37,7 @@ public static class ClosureReader
         finally
         {
             GameBundleHook.LoadIncludeFile = null;
+            GameBundleHook.LoadSeedFile = null;
         }
     }
 }

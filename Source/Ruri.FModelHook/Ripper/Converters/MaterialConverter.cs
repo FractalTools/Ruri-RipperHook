@@ -1,23 +1,20 @@
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_21;
-using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Material;
-using CUE4Parse.UE4.Assets.Exports.Texture;
-using CUE4Parse.UE4.Objects.Core.Math;
 using Ruri.RipperHook.Conversion;
-using System.Numerics;
 
 namespace Ruri.FModelHook.Ripper.Converters;
 
 /// <summary>
 /// A material interface: the base material of its parent chain becomes the Unity Shader (named
 /// by the material's own path, declaring every parameter the chain states), and every interface
-/// -- base or instance -- becomes a Material carrying the resolved parameter set CUE4Parse
-/// flattens across the chain: textures by parameter name, scalars, colours, static switches as
-/// scalars, and the blend and shading modes the material declares.
+/// -- base or instance -- becomes a Material carrying the parameter set the engine resolves for
+/// it: the base material's cached parameters and defaults, overridden by name down the parent
+/// chain, with the surface settings the base states and an instance overrides only where it
+/// flags them.
 /// </summary>
 public sealed class MaterialConverter : IUnrealConverter
 {
@@ -26,6 +23,7 @@ public sealed class MaterialConverter : IUnrealConverter
     public const string BlendModeName = "BlendMode";
     public const string ShadingModelName = "ShadingModel";
     public const string TwoSidedName = "TwoSided";
+    public const string OpacityMaskClipValueName = "OpacityMaskClipValue";
 
     public IReadOnlyList<string> ClassNames { get; } =
         ["MaterialInterface", "Material", "MaterialInstance", "MaterialInstanceConstant", "MaterialInstanceDynamic", "LandscapeMaterialInstanceConstant"];
@@ -49,10 +47,22 @@ public sealed class MaterialConverter : IUnrealConverter
         {
             return;
         }
-        CMaterialParams2 parameters = new();
-        source.GetParams(parameters, EMaterialDepth.AllLayers);
+        List<UMaterialInterface> chain = Chain(source);
+        UnrealMaterialParameters parameters = new(conversion);
+        foreach (UMaterialInterface layer in chain)
+        {
+            switch (layer)
+            {
+                case UMaterial baseMaterial:
+                    parameters.ReadRoot(baseMaterial);
+                    break;
+                case UMaterialInstance instance:
+                    parameters.ReadInstance(instance);
+                    break;
+            }
+        }
 
-        UMaterial? root = RootMaterial(source);
+        UMaterial? root = chain[0] as UMaterial;
         IShader? shader = root is null ? null : conversion.Table.Find<IShader>(root, ShaderSlot);
         if (shader is null)
         {
@@ -64,71 +74,39 @@ public sealed class MaterialConverter : IUnrealConverter
         {
             MaterialBuilder.FillShader(shader, source.GetPathName(), Declarations(parameters));
         }
-
-        MaterialInputs inputs = new() { Name = export.Name, Shader = shader };
-        foreach ((string name, UUnrealMaterial texture) in parameters.Textures)
-        {
-            ITexture2D? unityTexture = texture is UTexture2D ? conversion.Table.Find<ITexture2D>(texture) : null;
-            inputs.Textures.Add((name, unityTexture, Vector2.One, Vector2.Zero));
-        }
-        foreach ((string name, float value) in parameters.Scalars)
-        {
-            inputs.Floats.Add((name, value));
-        }
-        foreach ((string name, bool value) in parameters.Switches)
-        {
-            inputs.Floats.Add((name, value ? 1f : 0f));
-        }
-        foreach ((string name, FLinearColor color) in parameters.Colors)
-        {
-            inputs.Colors.Add((name, new Vector4(color.R, color.G, color.B, color.A)));
-        }
-        inputs.Floats.Add((BlendModeName, (float)parameters.BlendMode));
-        inputs.Floats.Add((ShadingModelName, (float)parameters.ShadingModel));
-        if (root is not null)
-        {
-            inputs.Floats.Add((TwoSidedName, root.TwoSided ? 1f : 0f));
-        }
-        MaterialBuilder.FillMaterial(material, inputs);
+        MaterialBuilder.FillMaterial(material, parameters.Inputs(export.Name, shader));
     }
 
-    private static UMaterial? RootMaterial(UMaterialInterface source)
+    /// <summary>The parent chain from the base material down to <paramref name="source"/>.</summary>
+    private static List<UMaterialInterface> Chain(UMaterialInterface source)
     {
-        UUnrealMaterial? cursor = source;
+        List<UMaterialInterface> chain = new();
         HashSet<UUnrealMaterial> seen = new(ReferenceEqualityComparer.Instance);
-        while (cursor is not null && seen.Add(cursor))
+        UUnrealMaterial? cursor = source;
+        while (cursor is UMaterialInterface layer && seen.Add(layer))
         {
-            if (cursor is UMaterial material)
-            {
-                return material;
-            }
-            cursor = cursor is UMaterialInstance instance ? instance.Parent : null;
+            chain.Add(layer);
+            cursor = layer is UMaterialInstance instance ? instance.Parent : null;
         }
-        return null;
+        chain.Reverse();
+        return chain;
     }
 
-    private static List<ShaderProperty> Declarations(CMaterialParams2 parameters)
+    private static List<ShaderProperty> Declarations(UnrealMaterialParameters parameters)
     {
         List<ShaderProperty> declarations = new();
-        foreach (string name in parameters.Textures.Keys)
+        foreach (string name in parameters.TextureNames)
         {
             declarations.Add(new ShaderProperty(name, ShaderPropertyKind.Texture));
         }
-        foreach (string name in parameters.Scalars.Keys)
+        foreach (string name in parameters.FloatNames)
         {
             declarations.Add(new ShaderProperty(name, ShaderPropertyKind.Float));
         }
-        foreach (string name in parameters.Switches.Keys)
-        {
-            declarations.Add(new ShaderProperty(name, ShaderPropertyKind.Float));
-        }
-        foreach (string name in parameters.Colors.Keys)
+        foreach (string name in parameters.ColorNames)
         {
             declarations.Add(new ShaderProperty(name, ShaderPropertyKind.Color));
         }
-        declarations.Add(new ShaderProperty(BlendModeName, ShaderPropertyKind.Float));
-        declarations.Add(new ShaderProperty(ShadingModelName, ShaderPropertyKind.Float));
-        declarations.Add(new ShaderProperty(TwoSidedName, ShaderPropertyKind.Float));
         return declarations;
     }
 }

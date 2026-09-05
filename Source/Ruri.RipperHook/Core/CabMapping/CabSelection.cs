@@ -1,3 +1,4 @@
+using AssetRipper.SourceGenerated;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Text;
@@ -14,6 +15,9 @@ public readonly struct CabClosure
     public required int SeedCount { get; init; }
 
     public required int ClosureCount { get; init; }
+
+    /// <summary>The entry file names of the rows the selection asked for, dependents reached through included.</summary>
+    public required HashSet<string> SeedFileNames { get; init; }
 }
 
 public sealed class CabSelection
@@ -25,6 +29,14 @@ public sealed class CabSelection
     public string[] FileScopes { get; init; } = [];
 
     public string[] SeedCabNames { get; init; } = [];
+
+    /// <summary>
+    /// Whether a selection whose whole closure is scripted data -- rows exporting nothing but
+    /// MonoBehaviour and MonoScript -- widens to the rows that depend on it, one hop at a time,
+    /// until the closure carries something else. A physics asset, a skeleton or a settings
+    /// record has no picture of its own; what pictures it is the mesh or the prefab using it.
+    /// </summary>
+    public bool ReachThroughDependents { get; init; }
 
     public bool IsEmpty =>
         NamePatterns.Length == 0 && ClassIds is null && FileScopes.Length == 0 && SeedCabNames.Length == 0;
@@ -89,6 +101,19 @@ public sealed class CabSelection
                 seeds.Add(id);
             }
         }
+        if (ReachThroughDependents)
+        {
+            Widen(table, seeds);
+        }
+        HashSet<string> seedFiles = new(StringComparer.OrdinalIgnoreCase);
+        foreach (int id in seeds)
+        {
+            string seedFileName = id < table.Count ? table.EntryFileName(id) : string.Empty;
+            if (seedFileName.Length > 0)
+            {
+                seedFiles.Add(seedFileName);
+            }
+        }
 
         bool[] fileSeen = new bool[table.FileCount];
         HashSet<string> loadFilter = new(StringComparer.OrdinalIgnoreCase);
@@ -127,7 +152,54 @@ public sealed class CabSelection
             LoadFilterFileNames = loadFilter,
             SeedCount = seeds.Count,
             ClosureCount = closureCount,
+            SeedFileNames = seedFiles,
         };
+    }
+
+    /// <summary>
+    /// Widen data-only seeds hop by hop through their dependents until the closure carries a
+    /// row exporting more than scripted data, or no dependent is left to reach.
+    /// </summary>
+    private static void Widen(CabTable table, List<int> seeds)
+    {
+        HashSet<int> known = new(seeds);
+        List<int> frontier = new(seeds);
+        while (frontier.Count > 0 && DataOnly(table, table.ClosureIds(seeds)))
+        {
+            List<int> next = new();
+            foreach (int id in frontier)
+            {
+                foreach (int dependent in table.Dependents(id))
+                {
+                    if (dependent < table.Count && known.Add(dependent))
+                    {
+                        next.Add(dependent);
+                    }
+                }
+            }
+            seeds.AddRange(next);
+            frontier = next;
+        }
+    }
+
+    /// <summary>Whether every row of a closure exports scripted data alone.</summary>
+    private static bool DataOnly(CabTable table, int[] closure)
+    {
+        foreach (int id in closure)
+        {
+            if (id >= table.Count)
+            {
+                continue;
+            }
+            foreach (int classId in table.ClassIds(id))
+            {
+                if (classId != (int)ClassIDType.MonoBehaviour && classId != (int)ClassIDType.MonoScript)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private bool[]? ScopeMatchesByFile(CabTable table)

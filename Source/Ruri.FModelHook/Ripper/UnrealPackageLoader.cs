@@ -7,6 +7,7 @@ using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.VirtualFileSystem;
 using Ruri.FModelHook.Ripper.TypeTree;
@@ -23,6 +24,7 @@ namespace Ruri.FModelHook.Ripper;
 public sealed class UnrealLoadShared
 {
     private readonly ConcurrentDictionary<string, IMonoScript> scripts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Converters.UnrealRig> rigs = new(StringComparer.Ordinal);
     private readonly object scriptGate = new();
 
     public UnrealLoadShared(UnrealFileProvider provider, ConvertedPackage scriptPackage)
@@ -34,6 +36,10 @@ public sealed class UnrealLoadShared
     public UnrealFileProvider Provider { get; }
 
     public ConvertedPackage ScriptPackage { get; }
+
+    /// <summary>The rig of a skeletal mesh, built once per load from its reference skeleton and shared by every placement of it.</summary>
+    public Converters.UnrealRig Rig(USkeletalMesh mesh, SourceBasis basis) =>
+        rigs.GetOrAdd(mesh.GetPathName(), _ => Converters.UnrealRig.From(mesh, basis));
 
     public IMonoScript Script(string className)
     {
@@ -55,7 +61,10 @@ public sealed class UnrealLoadShared
 /// package is deserialized and filled in parallel, so a reference from any export to any other
 /// resolves without ordering the packages and no package's data is held before its own fill.
 /// What counts as "asked for" is the archive files handed over, narrowed by the include
-/// predicate the cabmap closure states. A package is let go the moment its assets are filled:
+/// predicate the cabmap closure states; the seed predicate marks the packages the closure was
+/// asked for by name, which are the ones that stand as prefab roots of their own -- a
+/// package reached as a dependency contributes its assets and nothing at the top level.
+/// A package is let go the moment its assets are filled:
 /// the provider forgets it and the loader drops its objects, so what stays in memory is the
 /// Unity side plus whatever a package still being filled reaches into.
 /// </summary>
@@ -74,7 +83,7 @@ public static class UnrealPackageLoader
     /// </summary>
     public static readonly SourceBasis Basis = new(1, 1f, 2, 1f, 0, 1f, 0.01f);
 
-    public static void Load(GameBundle bundle, IEnumerable<string> archivePaths, Func<string, bool>? include)
+    public static void Load(GameBundle bundle, IEnumerable<string> archivePaths, Func<string, bool>? include, Func<string, bool>? seed)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         UnrealFileProvider provider = UnrealProviderSession.Current;
@@ -108,7 +117,7 @@ public static class UnrealPackageLoader
                 {
                     throw new InvalidDataException("not a package with an export map");
                 }
-                UnrealConversion conversion = new(space, space.Package(file.Path), file.Path, table, Basis, shared);
+                UnrealConversion conversion = new(space, space.Package(file.Path), file.Path, table, Basis, shared, seed is null || seed(file.Path));
                 for (int slot = 0; slot < package.ExportMapLength; slot++)
                 {
                     if (package.ResolvePackageIndex(new FPackageIndex(package, slot + 1)) is not { } header)

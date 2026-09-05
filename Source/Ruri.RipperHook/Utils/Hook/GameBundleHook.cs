@@ -81,6 +81,12 @@ public class GameBundleHook : CommonHook, IHookModule
 
     public static Func<string, bool>? LoadIncludeFile;
 
+    /// <summary>
+    /// Which of the included files the load was asked for by name, as opposed to reached as a
+    /// dependency. Null means every included file counts as asked for.
+    /// </summary>
+    public static Func<string, bool>? LoadSeedFile;
+
 
     public delegate IEnumerable<(string FileName, long FileNameHash, string BlockType, long Length, string ChkPath)> EnumerateVfsFilesDelegate(string[] vfsRoots, string[]? blockTypeFilter);
     public static EnumerateVfsFilesDelegate? EnumerateVfsFiles;
@@ -292,6 +298,7 @@ public class GameBundleHook : CommonHook, IHookModule
     {
         ScanIncludeFile = null;
         LoadIncludeFile = null;
+        LoadSeedFile = null;
         EnumerateVfsFiles = null;
         ExtractVfsFile = null;
         ScanChunk = null;

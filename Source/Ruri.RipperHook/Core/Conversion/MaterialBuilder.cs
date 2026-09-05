@@ -135,12 +135,27 @@ public static class MaterialBuilder
             pair.Value.SetValues(color.X, color.Y, color.Z, color.W);
         }
 
-        if (inputs.Keywords.Count > 0 && material.Has_ShaderKeywords_C21_AssetList_Utf8String())
+        if (inputs.Keywords.Count == 0)
+        {
+            return;
+        }
+        if (material.Has_ValidKeywords_C21())
+        {
+            foreach (string keyword in inputs.Keywords)
+            {
+                material.ValidKeywords_C21.Add(keyword);
+            }
+        }
+        else if (material.Has_ShaderKeywords_C21_AssetList_Utf8String())
         {
             foreach (string keyword in inputs.Keywords)
             {
                 material.ShaderKeywords_C21_AssetList_Utf8String!.Add(keyword);
             }
+        }
+        else if (material.Has_ShaderKeywords_C21_Utf8String())
+        {
+            material.ShaderKeywords_C21_Utf8String = string.Join(' ', inputs.Keywords);
         }
     }
 }

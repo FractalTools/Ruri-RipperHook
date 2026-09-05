@@ -716,7 +716,7 @@ public static class RipperBlenderBridge
         ArgumentNullException.ThrowIfNull(acceptedTextureFormats);
 
         System.Diagnostics.Stopwatch phase = System.Diagnostics.Stopwatch.StartNew();
-        CabClosure closure = new CabSelection { SeedCabNames = seedCabNames }.Resolve(map.Table);
+        CabClosure closure = new CabSelection { SeedCabNames = seedCabNames, ReachThroughDependents = true }.Resolve(map.Table);
         string[] closureFiles = closure.Files;
         HashSet<string> loadFilterFileNames = closure.LoadFilterFileNames;
         long resolveMs = phase.ElapsedMilliseconds;
@@ -747,6 +747,8 @@ public static class RipperBlenderBridge
 
         GameData gameData;
         GameBundleHook.LoadIncludeFile = loadFilterFileNames.Count > 0 ? name => loadFilterFileNames.Contains(name) : null;
+        HashSet<string> seedFileNames = closure.SeedFileNames;
+        GameBundleHook.LoadSeedFile = seedFileNames.Count > 0 ? name => seedFileNames.Contains(name) : null;
         phase.Restart();
         try
         {
@@ -755,6 +757,7 @@ public static class RipperBlenderBridge
         finally
         {
             GameBundleHook.LoadIncludeFile = null;
+            GameBundleHook.LoadSeedFile = null;
         }
         long loadMs = phase.ElapsedMilliseconds;
 

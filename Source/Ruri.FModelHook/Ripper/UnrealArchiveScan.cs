@@ -155,7 +155,12 @@ public static class UnrealArchiveScan
             }
         }
 
-        return (file.Path, file.Path, dependencies, classIds.ToList(), new List<string> { UnrealPaths.ContainerPath(file.Path) });
+        List<string> containerPaths = new() { UnrealPaths.ContainerPath(file.Path) };
+        if (classIds.Contains((int)ClassIDType.GameObject))
+        {
+            containerPaths.Add(UnrealPaths.PrefabPath(file.Path));
+        }
+        return (file.Path, file.Path, dependencies, classIds.ToList(), containerPaths);
     }
 
     private static void AddClasses(HashSet<int> classIds, string? className, TypeMappings? mappings)

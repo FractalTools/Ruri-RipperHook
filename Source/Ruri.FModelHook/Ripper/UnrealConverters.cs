@@ -64,6 +64,10 @@ public sealed class UnrealAssetTable
     public T? Find<T>(FPackageIndex? index, string slot = PrimarySlot) where T : class, IUnityObjectBase =>
         index is null || index.IsNull ? null : Find<T>(index.ResolvedObject, slot);
 
+    /// <summary>The asset an object path names -- the form a soft reference carries.</summary>
+    public T? Find<T>(string pathName, string slot = PrimarySlot) where T : class, IUnityObjectBase =>
+        assets.TryGetValue((pathName, slot), out IUnityObjectBase? asset) ? asset as T : null;
+
     public int Count => assets.Count;
 
     public static string Key(UObject export) => export.GetPathName();
@@ -74,8 +78,9 @@ public sealed class UnrealAssetTable
 /// <summary>The per-package conversion state a converter works against.</summary>
 public sealed class UnrealConversion
 {
-    public UnrealConversion(ConvertedSpace space, ConvertedPackage package, string packagePath, UnrealAssetTable table, SourceBasis basis, UnrealLoadShared shared)
+    public UnrealConversion(ConvertedSpace space, ConvertedPackage package, string packagePath, UnrealAssetTable table, SourceBasis basis, UnrealLoadShared shared, bool isSeed)
     {
+        IsSeed = isSeed;
         Space = space;
         Package = package;
         PackagePath = packagePath;
@@ -86,6 +91,12 @@ public sealed class UnrealConversion
     }
 
     public UnrealLoadShared Shared { get; }
+
+    /// <summary>
+    /// Whether the load was asked for this package by name. Only such a package stands as a
+    /// prefab root of its own; one reached as a dependency contributes assets alone.
+    /// </summary>
+    public bool IsSeed { get; }
 
     public ConvertedSpace Space { get; }
 
@@ -138,6 +149,12 @@ public static class UnrealPaths
 {
     public const string AssetsRoot = "Assets";
 
+    /// <summary>The file a package's prefab root lands on, in the layout its Unity stem states.</summary>
+    public const string PrefabExtension = ".prefab";
+
+    /// <summary>"Project/Content/A/B.uasset" to "Assets/Project/Content/A/B.prefab".</summary>
+    public static string PrefabPath(string packagePath) => UnityStem(packagePath) + PrefabExtension;
+
     /// <summary>"Project/Content/A/B.uasset" to "Assets/Project/Content/A/B".</summary>
     public static string UnityStem(string packagePath)
     {
@@ -171,6 +188,7 @@ public static class UnrealConverters
         new Converters.AnimSequenceConverter(),
         new Converters.WorldConverter(),
         new Converters.DataTableConverter(),
+        new Converters.BlueprintConverter(),
         new Converters.PropertyBagConverter(),
     ];
 

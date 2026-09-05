@@ -18,6 +18,6 @@ public static class UnrealEngine_Capabilities
     [FeedsModule(typeof(GameBundleHook), nameof(GameBundleHook.CustomFilePreInitialize))]
     public static void GameBundlePreInitialize(GameBundle _this, IEnumerable<string> paths, List<FileBase> fileStack, FileSystem fileSystem, IDependencyProvider? dependencyProvider)
     {
-        UnrealPackageLoader.Load(_this, paths, GameBundleHook.LoadIncludeFile);
+        UnrealPackageLoader.Load(_this, paths, GameBundleHook.LoadIncludeFile, GameBundleHook.LoadSeedFile);
     }
 }

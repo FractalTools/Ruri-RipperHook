@@ -21,7 +21,7 @@ namespace Ruri.FModelHook.Ripper.Converters;
 public sealed class StaticMeshConverter : IUnrealConverter
 {
     public const string PrefabSlot = "prefab";
-    public const string PrefabSuffix = "_model";
+    public const string PrefabSuffix = "";
     private const string LodSuffix = "_LOD";
 
     public IReadOnlyList<string> ClassNames { get; } = ["StaticMesh"];
@@ -33,6 +33,10 @@ public sealed class StaticMeshConverter : IUnrealConverter
     public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
         conversion.Register(header, conversion.Package.Create<IMesh>(ClassIDType.Mesh, header.Name.Text, conversion.UnityPath(header)));
+        if (!conversion.IsSeed)
+        {
+            return;
+        }
         IGameObject model = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
             conversion.UnityPath(header, PrefabSuffix));
         conversion.Register(header, model, PrefabSlot);

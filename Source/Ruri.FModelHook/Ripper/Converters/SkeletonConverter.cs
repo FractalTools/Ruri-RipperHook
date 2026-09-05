@@ -22,6 +22,10 @@ public sealed class SkeletonConverter : IUnrealConverter
 
     public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
+        if (!conversion.IsSeed)
+        {
+            return;
+        }
         IGameObject root = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One, conversion.UnityPath(header));
         conversion.Register(header, root);
     }

@@ -32,6 +32,10 @@ public sealed class SkeletalMeshConverter : IUnrealConverter
     public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
         conversion.Register(header, conversion.Package.Create<IMesh>(ClassIDType.Mesh, header.Name.Text, conversion.UnityPath(header)));
+        if (!conversion.IsSeed)
+        {
+            return;
+        }
         IGameObject model = conversion.Hierarchy.Node(header.Name.Text, null, Vector3.Zero, Quaternion.Identity, Vector3.One,
             conversion.UnityPath(header, StaticMeshConverter.PrefabSuffix));
         conversion.Register(header, model, PrefabSlot);
@@ -44,7 +48,7 @@ public sealed class SkeletalMeshConverter : IUnrealConverter
             return;
         }
         SkeletalMeshDto dto = new(source, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
-        UnrealRig rig = UnrealRig.From(dto.Bones, conversion.Basis);
+        UnrealRig rig = conversion.Shared.Rig(source, conversion.Basis);
         List<IMaterial?> materials = StaticMeshConverter.Materials(conversion, dto);
         string rootBoneName = rig.Names.Length > 0 ? rig.Names[0] : string.Empty;
         for (int lod = 0; lod < dto.LODs.Count; lod++)
@@ -58,11 +62,7 @@ public sealed class SkeletalMeshConverter : IUnrealConverter
         if (conversion.Table.Find<IGameObject>(export, PrefabSlot) is { } model && conversion.Table.Find<IMesh>(export) is { } first)
         {
             ITransform[] bones = rig.Build(conversion.Hierarchy, model);
-            FBox bounds = dto.Bounds;
-            Vector3 minimum = conversion.Basis.Position(bounds.Min.X, bounds.Min.Y, bounds.Min.Z);
-            Vector3 maximum = conversion.Basis.Position(bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
-            Vector3 center = (minimum + maximum) * 0.5f;
-            Vector3 extent = Vector3.Abs(maximum - minimum) * 0.5f;
+            (Vector3 center, Vector3 extent) = UnrealComponents.Bounds(conversion, dto.Bounds);
             conversion.Hierarchy.SkinnedMesh(model, first, bones, bones.Length > 0 ? bones[0] : null, materials, center, extent);
         }
         dto.Dispose();
