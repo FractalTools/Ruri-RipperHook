@@ -1,6 +1,7 @@
 using System.Reflection;
 using AssetRipper.Export.Modules.Textures;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
+using AssetRipper.SourceGenerated.Extensions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
@@ -35,8 +36,52 @@ public class TextureOrientationHook : CommonHook, IHookModule
             cursor.Emit(OpCodes.Call, replacement);
             rewritten = true;
         }
+        SerializeTheRead(il);
         return rewritten;
     }
+
+    /// <summary>
+    /// Put the image-data read behind a lock, so the conversion is safe to call from several
+    /// threads at once. The bytes of a streamed texture come off the one stream its resource
+    /// file is: read it concurrently and the stream position interleaves, which shows up as
+    /// corrupted pixels and never as an error. Everything after the read is computation over a
+    /// buffer, which is what the caller then spreads across cores.
+    /// </summary>
+    private static void SerializeTheRead(ILContext il)
+    {
+        MethodInfo serialized = typeof(TextureOrientationHook).GetMethod(nameof(ReadImageDataSerially), BindingFlags.Public | BindingFlags.Static)!;
+        ILCursor cursor = new(il);
+        while (cursor.TryGotoNext(MoveType.Before, IsImageDataRead))
+        {
+            cursor.Remove();
+            cursor.Emit(OpCodes.Call, serialized);
+            ReadsSerialized = true;
+        }
+    }
+
+    /// <summary>Whether the read inside the conversion is serialised, so a caller may convert on every core.</summary>
+    public static bool ReadsSerialized { get; private set; }
+
+    private static readonly object ImageDataGate = new();
+
+    public static byte[] ReadImageDataSerially(ITexture2D texture)
+    {
+        lock (ImageDataGate)
+        {
+            return texture.GetImageData();
+        }
+    }
+
+    /// <summary>
+    /// The image-data read, whichever extension container the compiler put it in: AssetRipper
+    /// declares it as an extension MEMBER, which lowers into the type holding that block
+    /// (Texture2DExtensions), not the one whose interface it extends.
+    /// </summary>
+    private static bool IsImageDataRead(Instruction instruction) =>
+        (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
+        && instruction.Operand is MethodReference reference
+        && reference.Name == "GetImageData"
+        && reference.DeclaringType.Name.EndsWith("Extensions", StringComparison.Ordinal);
 
     private static bool IsCallTo(Instruction instruction, string declaringType, string method) =>
         (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)

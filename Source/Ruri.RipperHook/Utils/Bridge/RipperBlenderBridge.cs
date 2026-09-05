@@ -1009,19 +1009,24 @@ public static class RipperBlenderBridge
             _ = PngEncoderReady.Value;
 
             System.Diagnostics.Stopwatch wall = System.Diagnostics.Stopwatch.StartNew();
-            List<Decoded> batch = new(BatchSize);
-            foreach (var texture in inlineTargets)
+            // Converting a texture reads it, decodes it and encodes it. The read is the only part
+            // that cannot share a thread (see TextureOrientationHook.ReadsSerialized), so once a
+            // lock guards it the whole set converts on every core -- including the textures of one
+            // resource file, which a cooked build puts ALL of them in.
+            IEnumerable<AssetRipper.SourceGenerated.Classes.ClassID_28.ITexture2D> streamed =
+                streamedByFile.Values.SelectMany(static group => group);
+            if (AR.TextureOrientationHook.ReadsSerialized)
             {
-                Stage(texture, batch);
+                Parallel.ForEach(inlineTargets.Concat(streamed), texture => _encoded[texture] = EncodeOne(texture));
             }
-            foreach (var group in streamedByFile.Values)
+            else
             {
-                foreach (var texture in group)
+                Parallel.ForEach(inlineTargets, texture => _encoded[texture] = EncodeOne(texture));
+                foreach (var texture in streamed)
                 {
-                    Stage(texture, batch);
+                    _encoded[texture] = EncodeOne(texture);
                 }
             }
-            EncodeBatch(batch);
             _prewarmWallMs = wall.ElapsedMilliseconds;
         }
 
@@ -1068,29 +1073,16 @@ public static class RipperBlenderBridge
             }
         }, LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private static int BatchSize => Math.Max(4, Environment.ProcessorCount);
-
-        private readonly record struct Decoded(
-            AssetRipper.SourceGenerated.Classes.ClassID_28.ITexture2D Texture,
-            AssetRipper.Export.Modules.Textures.DirectBitmap Bitmap,
-            AssetRipper.Export.Configuration.ImageExportFormat Format);
-
-        /// <summary>
-        /// Read and decode ONE texture on the calling thread, and hold it for the batch encode.
-        /// This is the half that must stay single threaded: the bytes come off the one stream a
-        /// resource file is, and reading it from several threads interleaves the stream position
-        /// and yields corrupted pixels rather than an error.
-        /// </summary>
-        private void Stage(AssetRipper.SourceGenerated.Classes.ClassID_28.ITexture2D texture, List<Decoded> batch)
+        private byte[]? EncodeOne(AssetRipper.SourceGenerated.Classes.ClassID_28.ITexture2D texture)
         {
             long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             if (!AssetRipper.Export.Modules.Textures.TextureConverter.TryConvertToBitmap(
                     texture, out AssetRipper.Export.Modules.Textures.DirectBitmap bitmap))
             {
-                _encoded[texture] = null;
-                return;
+                return null;
             }
-            Interlocked.Add(ref _decodeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
+            Interlocked.Add(ref _decodeTicks, t1 - t0);
             AssetRipper.Export.Configuration.ImageExportFormat natural =
                 texture.GetTextureExportFormat(PreferOriginalTextureExtension, ImageExportFormat);
             AssetRipper.Export.Configuration.ImageExportFormat negotiated = Negotiate(texture);
@@ -1099,29 +1091,10 @@ public static class RipperBlenderBridge
             {
                 Interlocked.Increment(ref _convertedCount);
             }
-            batch.Add(new Decoded(texture, bitmap, negotiated));
-            if (batch.Count >= BatchSize)
-            {
-                EncodeBatch(batch);
-            }
-        }
-
-        /// <summary>Encode the decoded batch on every core; nothing here touches a file.</summary>
-        private void EncodeBatch(List<Decoded> batch)
-        {
-            if (batch.Count == 0)
-            {
-                return;
-            }
-            Parallel.ForEach(batch, item =>
-            {
-                long started = System.Diagnostics.Stopwatch.GetTimestamp();
-                using MemoryStream stream = new();
-                item.Bitmap.Save(stream, item.Format);
-                Interlocked.Add(ref _encodeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started);
-                _encoded[item.Texture] = stream.ToArray();
-            });
-            batch.Clear();
+            using MemoryStream stream = new();
+            bitmap.Save(stream, negotiated);
+            Interlocked.Add(ref _encodeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - t1);
+            return stream.ToArray();
         }
 
         private readonly System.Collections.Concurrent.ConcurrentDictionary<
