@@ -3,6 +3,8 @@ using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.IO;
 using CUE4Parse.UE4.Pak;
 using CUE4Parse.UE4.VirtualFileSystem;
+using AssetRipper.SourceGenerated;
+using Ruri.RipperHook.CabMapping;
 using Ruri.RipperHook.Data;
 using Ruri.RipperHook.Tables;
 
@@ -20,6 +22,7 @@ public static class UnrealDatasets
     public const string ArchivesId = "unreal.archives";
     public const string WorldsId = "unreal.worlds";
     public const string WorldCellsId = "unreal.world.cells";
+    public const string ActorsId = "unreal.actors";
     public const string WorldParam = "world";
     public const string MinXParam = "minX";
     public const string MinYParam = "minY";
@@ -43,6 +46,12 @@ public static class UnrealDatasets
         Datasets.Publish(ArchivesId, DataRole.Diagnostic, [],
             "Every archive the install ships: path, encryption, whether it mounted, its key guid and file count.",
             Archives);
+        Datasets.Publish(ActorsId, DataRole.CharacterRoster, [],
+            "Every actor the install ships as a Blueprint class: its package, its name, its kind by the engine's own "
+            + "ancestry (Character, Pawn or Actor), the class it extends, the first "
+            + "engine class in its ancestry, and -- with a cabmap loaded -- how many skeletal and static mesh packages it "
+            + "imports directly. Importing the package places the actor with its components, the way a level would.",
+            Actors);
         Datasets.Publish(WorldsId, DataRole.SceneList, [],
             "Every world the install ships outside a World Partition's generated folder: its package, whether its "
             + "persistent level is partitioned, and how many streaming cells a partitioned one lists.",
@@ -56,6 +65,53 @@ public static class UnrealDatasets
             + "the install carries its package. Stating a window (minX, minY, maxX, maxY in Unreal units) keeps only the cells "
             + "whose bounds cross it, an always-loaded cell belonging to every window; stating a level keeps one hierarchical level.",
             WorldCells);
+    }
+
+    private static ColumnTable Actors(DataRequest request)
+    {
+        TableBuilder table = new(ActorsId, "package", "name", "kind", "parent", "native", "skeletal#", "static#");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        Dictionary<string, int> cabIds = request.HasMap ? CabIds(request.Map) : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (UnrealActorScan.Actor actor in UnrealActorScan.Scan(provider))
+        {
+            (int skeletal, int statics) = request.HasMap && cabIds.TryGetValue(actor.Package, out int id) ? MeshDependencies(request.Map, id) : (0, 0);
+            table.Row(actor.Package, actor.Name, actor.Kind, actor.Parent, actor.Native, skeletal, statics);
+        }
+        return table.Build();
+    }
+
+    private static Dictionary<string, int> CabIds(CabTable map)
+    {
+        Dictionary<string, int> ids = new(map.Count, StringComparer.OrdinalIgnoreCase);
+        for (int id = 0; id < map.Count; id++)
+        {
+            ids[map.CabName(id)] = id;
+        }
+        return ids;
+    }
+
+    /// <summary>How many of a package's direct dependencies carry a skeletal mesh, and how many a static one, by the classes the cabmap lists for them.</summary>
+    private static (int Skeletal, int Static) MeshDependencies(CabTable map, int id)
+    {
+        int skeletal = 0;
+        int statics = 0;
+        foreach (int dependency in map.Dependencies(id))
+        {
+            ReadOnlySpan<int> classIds = map.ClassIds(dependency);
+            if (classIds.IndexOf((int)ClassIDType.Mesh) < 0)
+            {
+                continue;
+            }
+            if (classIds.IndexOf((int)ClassIDType.SkinnedMeshRenderer) >= 0)
+            {
+                skeletal++;
+            }
+            else if (classIds.IndexOf((int)ClassIDType.MeshRenderer) >= 0)
+            {
+                statics++;
+            }
+        }
+        return (skeletal, statics);
     }
 
     private static ColumnTable Worlds(DataRequest request)

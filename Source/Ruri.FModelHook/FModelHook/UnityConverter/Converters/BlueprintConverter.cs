@@ -85,22 +85,9 @@ public sealed class BlueprintConverter : IUnrealConverter
     private static bool IsActorClass(UnrealConversion conversion, ResolvedObject header)
     {
         TypeMappings? mappings = conversion.Shared.Provider.MappingsForGame;
-        if (mappings is null)
-        {
-            return false;
-        }
-        ResolvedObject? cursor = header.Super;
-        HashSet<string> seen = new(StringComparer.Ordinal);
-        while (cursor is not null && seen.Add(cursor.GetPathName()))
-        {
-            string name = cursor.Name.Text;
-            if (mappings.Types.ContainsKey(name))
-            {
-                return UnrealConverters.IsA(name, ActorClassName, mappings);
-            }
-            cursor = cursor.Super;
-        }
-        return false;
+        return mappings is not null
+            && UnrealActorScan.NativeAncestor(header.Super, mappings) is { } native
+            && UnrealConverters.IsA(native, ActorClassName, mappings);
     }
 
     /// <summary>The Blueprint classes from the root-most down to the leaf.</summary>
