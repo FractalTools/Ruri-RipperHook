@@ -245,17 +245,17 @@ public sealed class UnrealValueWriter
         switch (kind)
         {
             case PrimitiveType.Bool: return elements.Select(static e => e is bool b && b).ToArray();
-            case PrimitiveType.SByte: return elements.Select(static e => (sbyte)Integer(e)).ToArray();
-            case PrimitiveType.Byte: return elements.Select(static e => (byte)Integer(e)).ToArray();
-            case PrimitiveType.Short: return elements.Select(static e => (short)Integer(e)).ToArray();
-            case PrimitiveType.UShort: return elements.Select(static e => (ushort)Integer(e)).ToArray();
-            case PrimitiveType.Int: return elements.Select(static e => (int)Integer(e)).ToArray();
-            case PrimitiveType.UInt: return elements.Select(static e => (uint)Integer(e)).ToArray();
+            case PrimitiveType.SByte: return elements.Select(static e => unchecked((sbyte)Integer(e))).ToArray();
+            case PrimitiveType.Byte: return elements.Select(static e => unchecked((byte)Integer(e))).ToArray();
+            case PrimitiveType.Short: return elements.Select(static e => unchecked((short)Integer(e))).ToArray();
+            case PrimitiveType.UShort: return elements.Select(static e => unchecked((ushort)Integer(e))).ToArray();
+            case PrimitiveType.Int: return elements.Select(static e => unchecked((int)Integer(e))).ToArray();
+            case PrimitiveType.UInt: return elements.Select(static e => unchecked((uint)Integer(e))).ToArray();
             case PrimitiveType.Long: return elements.Select(static e => Integer(e)).ToArray();
-            case PrimitiveType.ULong: return elements.Select(static e => (ulong)Integer(e)).ToArray();
+            case PrimitiveType.ULong: return elements.Select(static e => unchecked((ulong)Integer(e))).ToArray();
             case PrimitiveType.Single: return elements.Select(static e => (float)Real(e)).ToArray();
             case PrimitiveType.Double: return elements.Select(static e => Real(e)).ToArray();
-            case PrimitiveType.Char: return elements.Select(static e => (char)Integer(e)).ToArray();
+            case PrimitiveType.Char: return elements.Select(static e => unchecked((char)Integer(e))).ToArray();
             case PrimitiveType.String: return elements.Select(static e => Text(e)).ToArray();
             default: return new object[count];
         }
@@ -266,7 +266,7 @@ public sealed class UnrealValueWriter
         bool b => b ? 1 : 0,
         ulong u => unchecked((long)u),
         byte or sbyte or short or ushort or int or uint or long => Convert.ToInt64(value),
-        float or double => (long)Convert.ToDouble(value),
+        float or double => unchecked((long)Convert.ToDouble(value)),
         Enum e => Enum.GetUnderlyingType(e.GetType()) == typeof(ulong) ? unchecked((long)Convert.ToUInt64(e)) : Convert.ToInt64(e),
         _ => 0,
     };

@@ -89,6 +89,7 @@ internal static class CabQuery
         catch (Exception failed)
         {
             Console.Error.WriteLine($"[Ruri.CLI] dataset '{id}' failed: {failed.GetType().Name}: {failed.Message}");
+            Console.Error.WriteLine($"[Ruri.CLI] dataset stack:\n{failed}");
             return 1;
         }
 

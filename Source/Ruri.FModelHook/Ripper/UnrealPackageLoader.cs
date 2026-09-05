@@ -122,6 +122,7 @@ public static class UnrealPackageLoader
                     catch (Exception exception)
                     {
                         Logger.Warning(LogCategory.Import, $"[Unreal] Allocate {file.Path}:{header.Name} ({UnrealConversion.ClassOf(header)}): {exception.GetType().Name}: {exception.Message}");
+                        Logger.Verbose(LogCategory.Import, exception.ToString());
                     }
                 }
                 conversions[index] = conversion;
@@ -161,6 +162,7 @@ public static class UnrealPackageLoader
                     {
                         Interlocked.Increment(ref failedExports);
                         Logger.Warning(LogCategory.Import, $"[Unreal] Fill {conversion.PackagePath}:{export.Name} ({export.ExportType}): {exception.GetType().Name}: {exception.Message}");
+                        Logger.Verbose(LogCategory.Import, exception.ToString());
                     }
                 }
             }
