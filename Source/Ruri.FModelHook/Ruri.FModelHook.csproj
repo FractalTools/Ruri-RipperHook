@@ -50,4 +50,15 @@
     <Copy SourceFiles="@(_EngineUbMetadataSeed)" DestinationFiles="@(_EngineUbMetadataSeed->'$(OutputPath)EngineUbMetadata\%(RecursiveDir)%(Filename)%(Extension)')" Condition="!Exists('$(OutputPath)EngineUbMetadata\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- The kernel finds this module by the declaration its build leaves in the kernel's output:
+       one line naming this assembly's absolute path (Bootstrap.LoadDeclaredModules). -->
+  <PropertyGroup>
+    <RipperKernelOutput>$(MSBuildProjectDirectory)\..\..\AssetRipper\Source\0Bins\AssetRipper\$(Configuration)\</RipperKernelOutput>
+  </PropertyGroup>
+
+  <Target Name="DeclareModuleToKernel" AfterTargets="Build">
+    <MakeDir Directories="$(RipperKernelOutput)Modules" />
+    <WriteLinesToFile File="$(RipperKernelOutput)Modules\$(AssemblyName).module" Lines="$(TargetPath)" Overwrite="true" />
+  </Target>
+
 </Project>

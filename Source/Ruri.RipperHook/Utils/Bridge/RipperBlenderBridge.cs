@@ -129,6 +129,9 @@ public static class RipperBlenderBridge
     /// </summary>
     public static void LoadModule(string assemblyPath) => Bootstrap.LoadModule(assemblyPath);
 
+    /// <summary>Load every module the build declared beside the kernel (see <see cref="Bootstrap.LoadDeclaredModules"/>); the paths a host adds come on top.</summary>
+    public static int LoadDeclaredModules() => Bootstrap.LoadDeclaredModules().Count;
+
     /// <summary>
     /// Open the session on ONE install through ONE decoder. The host states which install and
     /// which decoder; which features run is this host's own fact (<see cref="HostFeatures"/>),

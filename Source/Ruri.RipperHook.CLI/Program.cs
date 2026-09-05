@@ -33,6 +33,7 @@ internal static class Program
 
     private static int Dispatch(CliOptions opts)
     {
+        Bootstrap.LoadDeclaredModules();
         if (opts.ListHooks)
         {
             ApplyHooks(opts);

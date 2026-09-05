@@ -43,6 +43,34 @@ public static class Bootstrap
         AssemblyLoadContext.Default.ResolvingUnmanagedDll += ResolveNative;
     }
 
+    public const string ModulesFolder = "Modules";
+    public const string ModuleDeclarationExtension = ".module";
+
+    /// <summary>
+    /// Load every module the build declared beside this assembly: a module's build writes
+    /// <c>Modules/&lt;name&gt;.module</c> into the kernel's output, one line naming the module
+    /// assembly's absolute path, so a host needs no setting to find the decoders built into
+    /// another output (FModel's, for the Unreal decoder) and an Unreal install is recognized the
+    /// moment any host looks at it. A declared path that no longer exists is an error, never a
+    /// silent skip.
+    /// </summary>
+    public static IReadOnlyList<Assembly> LoadDeclaredModules()
+    {
+        string directory = Path.Combine(Path.GetDirectoryName(typeof(Bootstrap).Assembly.Location)!, ModulesFolder);
+        List<Assembly> loaded = new();
+        if (!Directory.Exists(directory))
+        {
+            return loaded;
+        }
+        foreach (string declaration in Directory.GetFiles(directory, "*" + ModuleDeclarationExtension).OrderBy(static file => file, StringComparer.OrdinalIgnoreCase))
+        {
+            string path = File.ReadLines(declaration).Select(static line => line.Trim()).FirstOrDefault(static line => line.Length > 0)
+                ?? throw new InvalidDataException($"[Bootstrap] '{declaration}' declares no module path.");
+            loaded.Add(LoadModule(path));
+        }
+        return loaded;
+    }
+
     /// <summary>
     /// Load one hook assembly by path. Loading the same module twice yields the assembly already
     /// in the process; a path that does not exist is an error, never a silent skip.

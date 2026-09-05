@@ -35,6 +35,7 @@ internal static class Program
         }
         WireModuleSettings(config, configPath);
 
+        Bootstrap.LoadDeclaredModules();
         int enabledHookCountBeforeApply = config.EnabledHooks.Count;
         Bootstrap.ApplyHooks(config);
         if (config.EnabledHooks.Count != enabledHookCountBeforeApply)
