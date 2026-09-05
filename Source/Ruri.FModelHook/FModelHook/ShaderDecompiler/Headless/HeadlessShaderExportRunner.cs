@@ -16,6 +16,7 @@ using CUE4Parse.UE4.Assets.Exports.Material;
 using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Shaders;
 using CUE4Parse.UE4.Versions;
+using Ruri.FModelHook.Utils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Ruri.FModelHook.ShaderDecompiler;

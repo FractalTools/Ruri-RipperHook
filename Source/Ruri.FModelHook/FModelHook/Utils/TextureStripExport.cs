@@ -7,7 +7,7 @@ using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Versions;
 using CUE4Parse_Conversion.Textures;
 
-namespace Ruri.FModelHook;
+namespace Ruri.FModelHook.Utils;
 
 internal static class TextureStripExport
 {

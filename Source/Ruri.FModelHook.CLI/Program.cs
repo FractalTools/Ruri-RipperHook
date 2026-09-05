@@ -13,6 +13,7 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Versions;
 using CUE4Parse_Conversion.Options;
 using Ruri.FModelHook;
+using Ruri.FModelHook.Utils;
 using Ruri.FModelHook.ShaderDecompiler.Headless;
 using Ruri.FModelHook.ShaderDecompiler;
 using Ruri.Hook;

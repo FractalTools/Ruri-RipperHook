@@ -1,7 +1,7 @@
 using CUE4Parse_Conversion.Options;
 using CUE4Parse.UE4.Assets.Exports.Material;
 
-namespace Ruri.FModelHook;
+namespace Ruri.FModelHook.Utils;
 
 public static class UnrealExportOptions
 {
