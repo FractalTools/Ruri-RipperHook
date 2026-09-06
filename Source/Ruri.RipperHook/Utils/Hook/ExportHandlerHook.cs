@@ -56,11 +56,6 @@ public class ExportHandlerHook : CommonHook, IHookModule
 
     private static IEnumerable<IAssetProcessor> Splice(IEnumerable<IAssetProcessor> pipeline, ExportHandler handler)
     {
-        if (Registrations.Count == 0)
-        {
-            return pipeline;
-        }
-
         FullConfiguration settings = (FullConfiguration)HandlerSettings.GetValue(handler)!;
         List<IAssetProcessor> processors = new(pipeline);
         foreach (AssetProcessorRegistration registration in Registrations)
@@ -75,6 +70,50 @@ public class ExportHandlerHook : CommonHook, IHookModule
             }
             processors.InsertRange(anchor, registration.Factory(settings));
         }
-        return processors;
+        return Timed(processors);
+    }
+
+    /// <summary>
+    /// Every processor behind a stopwatch, with the whole list printed slowest first when the
+    /// last one has run. The export stage already states its cost per file extension, and that
+    /// is how a stage found to be writing megabytes nobody read gave itself away; the processing
+    /// stage stated only the names of its steps, so its cost could only be guessed at.
+    /// </summary>
+    private static List<IAssetProcessor> Timed(List<IAssetProcessor> processors)
+    {
+        List<(string Name, double Ms)> costs = new(processors.Count);
+        List<IAssetProcessor> timed = new(processors.Count);
+        for (int index = 0; index < processors.Count; index++)
+        {
+            timed.Add(new TimedProcessor(processors[index], costs, index == processors.Count - 1));
+        }
+        return timed;
+    }
+
+    private sealed class TimedProcessor(IAssetProcessor inner, List<(string Name, double Ms)> costs, bool last) : IAssetProcessor
+    {
+        public void Process(GameData gameData)
+        {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
+                inner.Process(gameData);
+            }
+            finally
+            {
+                costs.Add((inner.GetType().Name,
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency));
+            }
+            if (!last)
+            {
+                return;
+            }
+            foreach ((string name, double ms) in costs.OrderByDescending(static cost => cost.Ms))
+            {
+                AssetRipper.Import.Logging.Logger.Info(AssetRipper.Import.Logging.LogCategory.Processing,
+                    $"[ProcessCost] {name,-44} {ms,9:F1}ms");
+            }
+            costs.Clear();
+        }
     }
 }

@@ -1337,12 +1337,18 @@ public static class RipperBlenderBridge
                 continue;
             }
             string path = metaPath[..^".meta".Length];
+            files.TryGetValue(path, out byte[]? bytes);
             string? guid = ExtractGuid(metaBytes, utf8);
             if (guid is null)
             {
+                // A meta that names no guid identifies nothing; whatever it sat beside travels
+                // as a plain file, which is what happened before the index moved onto the meta.
+                if (bytes is not null)
+                {
+                    other[path] = bytes;
+                }
                 continue;
             }
-            files.TryGetValue(path, out byte[]? bytes);
             string normalizedPath = NormalizeExportPath(path);
             pathToGuid[normalizedPath] = guid;
             string pathStem = StripExtension(normalizedPath);
