@@ -8,6 +8,7 @@ using AssetRipper.Export.Modules.Textures;
 using AssetRipper.TextureDecoder.Rgb.Formats;
 using CUE4Parse.UE4.Assets.Exports.Material;
 using AssetRipper.Numerics;
+using CUE4Parse.UE4.Assets.Exports.Animation;
 using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Assets.Exports.Component.Lights;
 using CUE4Parse.UE4.Assets.Exports.Component.SkeletalMesh;
@@ -29,6 +30,7 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Pak;
 using CUE4Parse.UE4.VirtualFileSystem;
+using Ruri.RipperHook.Bridge;
 using Ruri.RipperHook.CabMapping;
 using Ruri.RipperHook.Data;
 using Ruri.RipperHook.Tables;
@@ -51,6 +53,7 @@ public static class UnrealDatasets
     public const string MeshGeometryId = "unreal.mesh.geometry";
     public const string MeshSkeletonId = "unreal.mesh.skeleton";
     public const string PlacementsId = "unreal.placements";
+    public const string AnimationsId = "unreal.animations";
     public const string MaterialsId = "unreal.materials";
     public const string TexturesId = "unreal.textures";
     public const string PackageParam = "package";
@@ -130,6 +133,12 @@ public static class UnrealDatasets
             + "-- for a light -- its kind, colour, intensity and shape. An instanced component places "
             + "nothing itself and states one child row per instance.",
             Placements);
+        Datasets.Publish(AnimationsId, DataRole.Internal, [DataParam.Text(PackageParam)],
+            "Every animation sequence in one package as curves a host plays: a JSON index beside a "
+            + "float32 payload (times, values and both tangents per key), keys reduced to what the "
+            + "sequence's own compression tolerance justifies, bone paths in the reference skeleton's "
+            + "own naming, coordinates in the host's basis. No AnimationClip asset is created.",
+            Animations);
         Datasets.Publish(MaterialsId, DataRole.Internal, [DataParam.List(MaterialParam)],
             "The parameter set each named material interface resolves to, the way the engine resolves it "
             + "(the base material's cached defaults, each instance overriding by name, then what the "
@@ -266,6 +275,37 @@ public static class UnrealDatasets
                     bone.Rotation.X, bone.Rotation.Y, bone.Rotation.Z, bone.Rotation.W,
                     bone.Scale.X, bone.Scale.Y, bone.Scale.Z, bone.Path);
             }
+        }
+        return table.Build();
+    }
+
+    /// <summary>
+    /// Every animation sequence in one package as the curves a host plays: the sequence sampled
+    /// (<see cref="UnrealClip"/>), reduced to the keys its own compression tolerance justifies
+    /// (<see cref="ClipBuilder.Reduce"/>), and packed as the clip blob -- one JSON index beside
+    /// one float32 payload, which the host reads with the reader every other clip goes through.
+    /// No AnimationClip asset is created; the sequences are read and the curves handed over.
+    /// </summary>
+    private static ColumnTable Animations(DataRequest request)
+    {
+        TableBuilder table = new(AnimationsId, "name", "meta", "curves@", "frames#", "rate#");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        string package = PackageKey(provider, request.Text(PackageParam));
+        if (!provider.Files.TryGetValue(package, out GameFile? file))
+        {
+            return table.Build();
+        }
+        foreach (UObject export in provider.LoadPackage(file).GetExports())
+        {
+            if (export is not UAnimSequence source
+                || UnrealClip.Read(source, UnrealPackageLoader.Basis, package) is not { } sampled)
+            {
+                continue;
+            }
+            List<ClipBuilder.ReducedChannel> channels =
+                ClipBuilder.Reduce(sampled.SampleRate, sampled.FrameCount, sampled.Tracks, [], sampled.Tolerance);
+            (string meta, byte[] curves) = ClipCurveBlob.Build(export.Name, sampled.SampleRate, sampled.FrameCount, channels);
+            table.Row(export.Name, meta, curves, sampled.FrameCount, sampled.SampleRate);
         }
         return table.Build();
     }
