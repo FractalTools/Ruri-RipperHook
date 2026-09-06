@@ -1,4 +1,4 @@
-using AssetRipper.SourceGenerated;
+﻿using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_21;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using CUE4Parse.UE4.Assets;
@@ -50,32 +50,7 @@ public sealed class MaterialConverter : IUnrealConverter
             return;
         }
         List<UMaterialInterface> chain = Chain(source);
-        UnrealMaterialParameters parameters = new(conversion);
-        foreach (UMaterialInterface layer in chain)
-        {
-            switch (layer)
-            {
-                case UMaterial baseMaterial:
-                    parameters.ReadRoot(baseMaterial);
-                    break;
-                case UMaterialInstance instance:
-                    parameters.ReadInstance(instance);
-                    break;
-            }
-        }
-
-        if (conversion.Shared.Semantics is { } resolver && resolver.Resolve(source) is { } semantics)
-        {
-            if (semantics.IsResolved)
-            {
-                parameters.Apply(semantics);
-            }
-            else
-            {
-                Logger.Verbose(LogCategory.Import, $"[Unreal] {source.GetPathName()}: material semantics not read: {semantics.Status}");
-            }
-        }
-
+        UnrealMaterialParameters parameters = Resolve(conversion.Shared.Provider, conversion.Shared.Semantics, source, chain);
         UMaterial? root = chain[0] as UMaterial;
         IShader? shader = root is null ? null : conversion.Table.Find<IShader>(root, ShaderSlot);
         if (shader is null)
@@ -88,11 +63,48 @@ public sealed class MaterialConverter : IUnrealConverter
         {
             MaterialBuilder.FillShader(shader, source.GetPathName(), Declarations(parameters));
         }
-        MaterialBuilder.FillMaterial(material, parameters.Inputs(export.Name, shader));
+        MaterialBuilder.FillMaterial(material, parameters.Inputs(export.Name, shader, conversion.Table));
+    }
+
+    /// <summary>
+    /// The parameter set a material interface resolves to, the way the engine resolves it: the
+    /// base material's cached parameters and defaults, each instance down the chain overriding by
+    /// name, then what the compiled base pass proves about the slots. This is the ONE reading of
+    /// a material -- the Unity conversion runs it, and so does a host asking for the parameters
+    /// alone -- so neither can drift from the other.
+    /// </summary>
+    internal static UnrealMaterialParameters Resolve(UnrealFileProvider provider, MaterialSemanticsResolver? resolver,
+        UMaterialInterface source, List<UMaterialInterface>? chain = null)
+    {
+        UnrealMaterialParameters parameters = new(provider);
+        foreach (UMaterialInterface layer in chain ?? Chain(source))
+        {
+            switch (layer)
+            {
+                case UMaterial baseMaterial:
+                    parameters.ReadRoot(baseMaterial);
+                    break;
+                case UMaterialInstance instance:
+                    parameters.ReadInstance(instance);
+                    break;
+            }
+        }
+        if (resolver is not null && resolver.Resolve(source) is { } semantics)
+        {
+            if (semantics.IsResolved)
+            {
+                parameters.Apply(semantics);
+            }
+            else
+            {
+                Logger.Verbose(LogCategory.Import, $"[Unreal] {source.GetPathName()}: material semantics not read: {semantics.Status}");
+            }
+        }
+        return parameters;
     }
 
     /// <summary>The parent chain from the base material down to <paramref name="source"/>.</summary>
-    private static List<UMaterialInterface> Chain(UMaterialInterface source)
+    internal static List<UMaterialInterface> Chain(UMaterialInterface source)
     {
         List<UMaterialInterface> chain = new();
         HashSet<UUnrealMaterial> seen = new(ReferenceEqualityComparer.Instance);

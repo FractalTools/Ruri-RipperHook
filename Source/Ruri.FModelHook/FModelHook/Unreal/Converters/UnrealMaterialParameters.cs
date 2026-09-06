@@ -1,4 +1,4 @@
-using AssetRipper.Import.Logging;
+﻿using AssetRipper.Import.Logging;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using CUE4Parse.MappingsProvider;
@@ -80,19 +80,21 @@ internal sealed class UnrealMaterialParameters
         [EGame.GAME_UE5_5] = ["Scalar", "Vector", "DoubleVector", "Texture", "TextureCollection", "Font", "RuntimeVirtualTexture", "SparseVolumeTexture", "StaticSwitch"],
     };
 
-    private readonly UnrealConversion conversion;
+    private readonly UnrealFileProvider provider;
     private readonly TypeMappings? mappings;
-    private readonly OrderedDictionary<string, ITexture2D?> textures = new(StringComparer.Ordinal);
+    // The texture of a parameter is held as its OBJECT PATH, which is what the engine calls it
+    // and what every consumer keys by -- the Unity asset table, and a host's own texture source.
+    private readonly OrderedDictionary<string, string?> textures = new(StringComparer.Ordinal);
     private readonly OrderedDictionary<string, float> floats = new(StringComparer.Ordinal);
     private readonly OrderedDictionary<string, Vector4> colors = new(StringComparer.Ordinal);
     private readonly List<string> keywords = new();
     private readonly HashSet<string> parameterDefaults = new(StringComparer.Ordinal);
     private readonly List<string> referencedNames = new();
 
-    public UnrealMaterialParameters(UnrealConversion conversion)
+    public UnrealMaterialParameters(UnrealFileProvider provider)
     {
-        this.conversion = conversion ?? throw new ArgumentNullException(nameof(conversion));
-        mappings = conversion.Shared.Provider.MappingsForGame;
+        this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        mappings = provider.MappingsForGame;
     }
 
     public IEnumerable<string> TextureNames => textures.Keys;
@@ -100,6 +102,18 @@ internal sealed class UnrealMaterialParameters
     public IEnumerable<string> FloatNames => floats.Keys;
 
     public IEnumerable<string> ColorNames => colors.Keys;
+
+    /// <summary>Every texture parameter beside the object path of the texture it names.</summary>
+    public IEnumerable<KeyValuePair<string, string?>> Textures => textures;
+
+    /// <summary>Every scalar parameter beside its resolved value.</summary>
+    public IEnumerable<KeyValuePair<string, float>> Floats => floats;
+
+    /// <summary>Every vector parameter beside its resolved value.</summary>
+    public IEnumerable<KeyValuePair<string, Vector4>> Colors => colors;
+
+    /// <summary>The inputs the base material's graph connects, plus what the semantics pass stated.</summary>
+    public IReadOnlyList<string> Keywords => keywords;
 
     public void Float(string name, float value) => floats[name] = value;
 
@@ -134,7 +148,9 @@ internal sealed class UnrealMaterialParameters
     {
         foreach (FTextureParameterValue value in instance.GetOrDefault<FTextureParameterValue[]>("TextureParameterValues", []))
         {
-            textures[value.Name] = conversion.Table.Find<ITexture2D>(value.ParameterValue);
+            textures[value.Name] = value.ParameterValue is { IsNull: false } pointer
+                ? pointer.ResolvedObject?.GetPathName()
+                : null;
         }
         foreach (FScalarParameterValue value in instance.GetOrDefault<FScalarParameterValue[]>("ScalarParameterValues", []))
         {
@@ -327,19 +343,18 @@ internal sealed class UnrealMaterialParameters
         }
     }
 
-    public MaterialInputs Inputs(string name, IShader shader)
+    /// <summary>
+    /// The Unity form of this parameter set: every texture parameter's path resolved through the
+    /// conversion's asset table. A path no table entry answers to lands as a null texture,
+    /// exactly as an unresolvable reference always did.
+    /// </summary>
+    public MaterialInputs Inputs(string name, IShader shader, UnrealAssetTable table)
     {
         MaterialInputs inputs = new() { Name = name, Shader = shader };
-        int blend = (int)floats[MaterialConverter.BlendModeName];
-        bool masked = blend == (int)EBlendMode.BLEND_Masked;
-        floats[ModeName] = blend == (int)EBlendMode.BLEND_Opaque ? ModeOpaque : masked ? ModeCutout : ModeFade;
-        if (masked)
+        StateSurfaceMode();
+        foreach ((string textureName, string? path) in textures)
         {
-            floats[CutoffName] = floats[MaterialConverter.OpacityMaskClipValueName];
-        }
-        foreach ((string textureName, ITexture2D? texture) in textures)
-        {
-            inputs.Textures.Add((textureName, texture, Vector2.One, Vector2.Zero));
+            inputs.Textures.Add((textureName, path is null ? null : table.Find<ITexture2D>(path), Vector2.One, Vector2.Zero));
         }
         foreach ((string floatName, float value) in floats)
         {
@@ -354,13 +369,29 @@ internal sealed class UnrealMaterialParameters
     }
 
     /// <summary>
+    /// Unity's own spelling of the surface the base material declares: the mode, and the cutoff
+    /// a masked material clips at. Stated on the parameter set itself, so a consumer that never
+    /// builds a Unity asset reads the same two properties.
+    /// </summary>
+    public void StateSurfaceMode()
+    {
+        int blend = (int)floats[MaterialConverter.BlendModeName];
+        bool masked = blend == (int)EBlendMode.BLEND_Masked;
+        floats[ModeName] = blend == (int)EBlendMode.BLEND_Opaque ? ModeOpaque : masked ? ModeCutout : ModeFade;
+        if (masked)
+        {
+            floats[CutoffName] = floats[MaterialConverter.OpacityMaskClipValueName];
+        }
+    }
+
+    /// <summary>
     /// The cached parameter tables -- on the cached data itself, or under its Parameters member
     /// in the engines that nest them: one entry per runtime parameter kind, in the engine's
     /// declared order, each listing its parameters beside a value table.
     /// </summary>
     private void ReadCached(FStructFallback parameters, string owner)
     {
-        EGame game = conversion.Shared.Provider.Versions.Game;
+        EGame game = provider.Versions.Game;
         if (!KindLayouts.TryGetValue(game, out string[]? layout))
         {
             Logger.Warning(LogCategory.Import, $"[Unreal] {owner}: no cached-parameter kind layout is declared for {game}; parameter defaults not read.");
@@ -410,7 +441,7 @@ internal sealed class UnrealMaterialParameters
                     Read(owner, kind, infos, parameters.GetOrDefault<FSoftObjectPath[]>(table, []), (name, value) =>
                     {
                         parameterDefaults.Add(value.AssetPathName.Text);
-                        textures[name] = conversion.Table.Find<ITexture2D>(value.AssetPathName.Text);
+                        textures[name] = value.AssetPathName.Text;
                     });
                     break;
                 case "StaticSwitch":
@@ -463,12 +494,12 @@ internal sealed class UnrealMaterialParameters
     {
         if (role is not null && group.Count == 1)
         {
-            textures[role] = conversion.Table.Find<ITexture2D>(group[0]);
+            textures[role] = group[0].GetPathName();
             return;
         }
         foreach (UTexture texture in group)
         {
-            textures[texture.Name] = conversion.Table.Find<ITexture2D>(texture);
+            textures[texture.Name] = texture.GetPathName();
         }
     }
 
