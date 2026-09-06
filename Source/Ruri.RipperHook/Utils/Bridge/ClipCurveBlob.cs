@@ -3,13 +3,14 @@ using AssetRipper.SourceGenerated.Subclasses.FloatCurve;
 using AssetRipper.SourceGenerated.Subclasses.QuaternionCurve;
 using AssetRipper.SourceGenerated.Subclasses.Vector3Curve;
 using Ruri.RipperHook.Animation;
+using Ruri.RipperHook.Conversion;
 using Ruri.RipperHook.Humanoid;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Ruri.RipperHook.Bridge;
 
-internal static class ClipCurveBlob
+public static class ClipCurveBlob
 {
     private sealed record CurveIndexEntry(string kind, string path, string? attr, int classId, int keys, long off);
 
@@ -132,6 +133,58 @@ internal static class ClipCurveBlob
 
         SolvedClipIndex meta = new("solved", pose.SampleRate, 0f, 0f,
             keepPositionXZ, keepPositionY, keepOrientation, index, consumedAttributes);
+        byte[] bytes = new byte[totalFloats * sizeof(float)];
+        Buffer.BlockCopy(payload, 0, bytes, 0, bytes.Length);
+        return (JsonSerializer.Serialize(meta), bytes);
+    }
+
+    /// <summary>
+    /// Curves already reduced, as the blob a host reads. Same layout as every other blob here --
+    /// per curve, times then values then both tangents, each value key-major across components --
+    /// so the reader cannot tell which producer wrote it.
+    /// </summary>
+    public static (string MetaJson, byte[] Curves) Build(string name, float sampleRate, int frameCount,
+        IReadOnlyList<ClipBuilder.ReducedChannel> channels)
+    {
+        ArgumentNullException.ThrowIfNull(channels);
+        List<CurveIndexEntry> index = new(channels.Count);
+        long totalFloats = 0;
+        foreach (ClipBuilder.ReducedChannel channel in channels)
+        {
+            int keys = channel.Frames.Length;
+            index.Add(new CurveIndexEntry(channel.Kind, channel.Path,
+                channel.Attribute.Length == 0 ? null : channel.Attribute, channel.ClassId, keys, totalFloats));
+            totalFloats += keys + 3L * keys * channel.Values.Length;
+        }
+        float[] payload = new float[totalFloats];
+        int cursor = 0;
+        foreach (ClipBuilder.ReducedChannel channel in channels)
+        {
+            int keys = channel.Frames.Length;
+            int dimensions = channel.Values.Length;
+            for (int key = 0; key < keys; key++)
+            {
+                payload[cursor + key] = channel.Frames[key] / sampleRate;
+            }
+            cursor += keys;
+            foreach (float[][] component in new[] { channel.Values, channel.InSlopes, channel.OutSlopes })
+            {
+                for (int key = 0; key < keys; key++)
+                {
+                    for (int axis = 0; axis < dimensions; axis++)
+                    {
+                        payload[cursor + key * dimensions + axis] = component[axis][key];
+                    }
+                }
+                cursor += keys * dimensions;
+            }
+        }
+        if (cursor != totalFloats)
+        {
+            throw new InvalidOperationException($"clip blob desync: wrote {cursor}, indexed {totalFloats}");
+        }
+        ClipIndex meta = new(name, sampleRate, 0f, frameCount > 1 ? (frameCount - 1) / sampleRate : 0f,
+            true, true, true, index);
         byte[] bytes = new byte[totalFloats * sizeof(float)];
         Buffer.BlockCopy(payload, 0, bytes, 0, bytes.Length);
         return (JsonSerializer.Serialize(meta), bytes);

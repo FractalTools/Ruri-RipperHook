@@ -62,6 +62,109 @@ public static class ClipBuilder
 
     private readonly record struct CurveJob(CurveKind Kind, ClipTrack? Track, ClipFloatTrack? FloatTrack);
 
+    /// <summary>
+    /// One curve after reduction, in nobody's engine: which frames it keeps, and per component
+    /// the value and the two tangents at each of them. ``Kind`` is the curve's own word for what
+    /// it drives -- rot, pos, scale, float -- and ``Values[component][key]`` is laid out the way
+    /// every consumer reads it, one array per component.
+    /// </summary>
+    public sealed record ReducedChannel(string Kind, string Path, string Attribute, int ClassId,
+        int[] Frames, float[][] Values, float[][] InSlopes, float[][] OutSlopes);
+
+    public const string RotationKind = "rot";
+    public const string PositionKind = "pos";
+    public const string ScaleKind = "scale";
+    public const string FloatKind = "float";
+
+    /// <summary>
+    /// Every track reduced to the keys it needs, each curve on its own core. This is the whole
+    /// of what a clip IS once it is decoded; writing it into a Unity AnimationClip (see
+    /// <see cref="Fill"/>) is one consumer of it, and a host reading the decoder's own datasets
+    /// is another.
+    /// </summary>
+    public static List<ReducedChannel> Reduce(float sampleRate, int frameCount,
+        IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks, ClipTolerance? tolerance = null)
+    {
+        ArgumentNullException.ThrowIfNull(tracks);
+        ArgumentNullException.ThrowIfNull(floatTracks);
+        if (sampleRate <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleRate), sampleRate, "A clip needs a positive sample rate.");
+        }
+        if (frameCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frameCount), frameCount, "A clip needs at least one frame.");
+        }
+        List<CurveJob> jobs = Jobs(frameCount, tracks, floatTracks);
+        ReducedCurve[] reduced = new ReducedCurve[jobs.Count];
+        Parallel.For(0, jobs.Count, index => reduced[index] = Reduce(jobs[index], sampleRate, tolerance));
+        List<ReducedChannel> channels = new(jobs.Count);
+        for (int index = 0; index < jobs.Count; index++)
+        {
+            CurveJob job = jobs[index];
+            ReducedCurve curve = reduced[index];
+            float[][] samples = job.Kind switch
+            {
+                CurveKind.Rotation => Components(job.Track!.Rotations!),
+                CurveKind.Position => Components(job.Track!.Positions!),
+                CurveKind.Scale => Components(job.Track!.Scales!),
+                _ => [job.FloatTrack!.Values],
+            };
+            float[][] values = new float[samples.Length][];
+            for (int component = 0; component < samples.Length; component++)
+            {
+                values[component] = new float[curve.Frames.Length];
+                for (int key = 0; key < curve.Frames.Length; key++)
+                {
+                    values[component][key] = samples[component][curve.Frames[key]];
+                }
+            }
+            channels.Add(new ReducedChannel(
+                job.Kind switch
+                {
+                    CurveKind.Rotation => RotationKind,
+                    CurveKind.Position => PositionKind,
+                    CurveKind.Scale => ScaleKind,
+                    _ => FloatKind,
+                },
+                job.Track?.Path ?? job.FloatTrack!.Path,
+                job.FloatTrack?.Attribute ?? string.Empty,
+                job.FloatTrack is null ? 0 : (int)job.FloatTrack.TargetClass,
+                curve.Frames, values, curve.InSlopes, curve.OutSlopes));
+        }
+        return channels;
+    }
+
+    /// <summary>The curves a set of tracks asks for, each validated against the frame count.</summary>
+    private static List<CurveJob> Jobs(int frameCount, IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks)
+    {
+        List<CurveJob> jobs = new();
+        foreach (ClipTrack track in tracks)
+        {
+            if (track.Rotations is not null)
+            {
+                Validate(track.Rotations.Length, frameCount, track.Path);
+                jobs.Add(new CurveJob(CurveKind.Rotation, track, null));
+            }
+            if (track.Positions is not null)
+            {
+                Validate(track.Positions.Length, frameCount, track.Path);
+                jobs.Add(new CurveJob(CurveKind.Position, track, null));
+            }
+            if (track.Scales is not null)
+            {
+                Validate(track.Scales.Length, frameCount, track.Path);
+                jobs.Add(new CurveJob(CurveKind.Scale, track, null));
+            }
+        }
+        foreach (ClipFloatTrack track in floatTracks)
+        {
+            Validate(track.Values.Length, frameCount, track.Path + "/" + track.Attribute);
+            jobs.Add(new CurveJob(CurveKind.Float, null, track));
+        }
+        return jobs;
+    }
+
     public static IAnimationClip Build(ConvertedPackage package, string name, string? originalPath, float sampleRate, int frameCount,
         IReadOnlyList<ClipTrack> tracks, IReadOnlyList<ClipFloatTrack> floatTracks, ClipTolerance? tolerance = null)
     {
@@ -116,30 +219,7 @@ public static class ClipBuilder
             clip.MuscleClipInfo_C74.KeepOriginalOrientation = true;
         }
 
-        List<CurveJob> jobs = new();
-        foreach (ClipTrack track in tracks)
-        {
-            if (track.Rotations is not null)
-            {
-                Validate(track.Rotations.Length, frameCount, track.Path);
-                jobs.Add(new CurveJob(CurveKind.Rotation, track, null));
-            }
-            if (track.Positions is not null)
-            {
-                Validate(track.Positions.Length, frameCount, track.Path);
-                jobs.Add(new CurveJob(CurveKind.Position, track, null));
-            }
-            if (track.Scales is not null)
-            {
-                Validate(track.Scales.Length, frameCount, track.Path);
-                jobs.Add(new CurveJob(CurveKind.Scale, track, null));
-            }
-        }
-        foreach (ClipFloatTrack track in floatTracks)
-        {
-            Validate(track.Values.Length, frameCount, track.Path + "/" + track.Attribute);
-            jobs.Add(new CurveJob(CurveKind.Float, null, track));
-        }
+        List<CurveJob> jobs = Jobs(frameCount, tracks, floatTracks);
 
         ReducedCurve[] reduced = new ReducedCurve[jobs.Count];
         Parallel.For(0, jobs.Count, index => reduced[index] = Reduce(jobs[index], sampleRate, tolerance));
