@@ -1,10 +1,18 @@
-using AssetRipper.Import.Logging;
+﻿using AssetRipper.Import.Logging;
 using AssetRipper.SourceGenerated;
 using CUE4Parse.FileProvider;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using AssetRipper.Export.Modules.Textures;
+using AssetRipper.TextureDecoder.Rgb.Formats;
+using CUE4Parse.UE4.Assets.Exports.Material;
+using AssetRipper.Numerics;
+using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
+using CUE4Parse.UE4.Assets.Exports.Texture;
+using CUE4Parse_Conversion.Textures;
+using Ruri.FModelHook.ShaderDecompiler.Semantics;
 using CUE4Parse_Conversion.Dto;
 using CUE4Parse_Conversion.Options;
 using Ruri.FModelHook.Unreal.Converters;
@@ -34,7 +42,12 @@ public static class UnrealDatasets
     public const string WorldCellsId = "unreal.world.cells";
     public const string ActorsId = "unreal.actors";
     public const string MeshGeometryId = "unreal.mesh.geometry";
+    public const string MeshSkeletonId = "unreal.mesh.skeleton";
+    public const string MaterialsId = "unreal.materials";
+    public const string TexturesId = "unreal.textures";
     public const string PackageParam = "package";
+    public const string MaterialParam = "material";
+    public const string TextureParam = "texture";
     public const string WorldParam = "world";
     public const string MinXParam = "minX";
     public const string MinYParam = "minY";
@@ -42,6 +55,11 @@ public static class UnrealDatasets
     public const string MaxYParam = "maxY";
     public const string LevelParam = "level";
     private const char ListSeparator = ';';
+    private const string MaterialRow = "m";
+    private const string KeywordRow = "k";
+    private const string TextureRow = "t";
+    private const string ScalarRow = "f";
+    private const string VectorRow = "c";
 
     public static void Register()
     {
@@ -83,16 +101,38 @@ public static class UnrealDatasets
             WorldCells);
         Datasets.Publish(MeshGeometryId, DataRole.Internal, [DataParam.Text(PackageParam)],
             "Every LOD of every mesh in one package as raw buffers -- positions, normals, tangents, "
-            + "the first texture coordinates, triangle indices and the material sections -- already in "
-            + "the host's basis. The geometry without the conversion: no Unity asset, no export, no text.",
+            + "every texture coordinate set, colours, triangle indices, the material sections and -- for "
+            + "a skeletal mesh -- four influences a vertex beside the bone names they index. Already in "
+            + "the host's basis, beside the object path of the material each slot names. "
+            + "The geometry without the conversion: no Unity asset, no export, no text.",
             MeshGeometry);
+        Datasets.Publish(MeshSkeletonId, DataRole.Internal, [DataParam.Text(PackageParam)],
+            "The reference skeleton of every skeletal mesh in one package, bone by bone in the order "
+            + "the meshes' weights index them: name, parent, the local transform it rests at in the "
+            + "host's basis, and the path a clip addresses it by.",
+            MeshSkeleton);
+        Datasets.Publish(MaterialsId, DataRole.Internal, [DataParam.List(MaterialParam)],
+            "The parameter set each named material interface resolves to, the way the engine resolves it "
+            + "(the base material's cached defaults, each instance overriding by name, then what the "
+            + "compiled base pass proves about the slots). One row per entry, told apart by 'kind': "
+            + "'m' the material itself (name, and the base material of its chain under 'texture'), "
+            + "'k' an input its graph connects, 't' a texture parameter (the texture's object path under "
+            + "'texture'), 'f' a scalar (x), 'c' a vector (x y z w). No Unity Shader, no Material, no text.",
+            Materials);
+        Datasets.Publish(TexturesId, DataRole.Internal, [DataParam.List(TextureParam)],
+            "Each named texture decoded to pixels and handed over in a container a host loads directly: "
+            + "its object path, its own name, its size, and whether the asset itself declares sRGB encoding "
+            + "or a normal map -- the two facts a host must not guess from a slot or a file name.",
+            Textures);
     }
 
     /// <summary>
     /// Every LOD of every mesh in one package, as the buffers a host writes into its own mesh:
-    /// positions, normals, tangents, the first texture coordinate set and the triangle indices,
-    /// each a blob of packed floats or uints, plus the material sections as int triples
-    /// (first index, index count, material slot). Coordinates are already in the host's basis.
+    /// every vertex stream the engine stores (positions, normals, tangents, colours, every
+    /// texture coordinate set), the triangle indices, the material sections as int triples
+    /// (first index, index count, material slot), and -- for a skeletal mesh -- four influences
+    /// a vertex beside the bone names its indices address. Coordinates are already in the
+    /// host's basis.
     ///
     /// This is the geometry WITHOUT the detour: the package is read, the LOD decoded and the
     /// buffers handed over. Nothing here creates a Unity asset, runs an export or writes text.
@@ -100,7 +140,7 @@ public static class UnrealDatasets
     private static ColumnTable MeshGeometry(DataRequest request)
     {
         TableBuilder table = new(MeshGeometryId, "name", "lod#", "vertices#", "positions@", "normals@",
-            "tangents@", "uv0@", "indices@", "sections@");
+            "tangents@", "colors@", "uv@", "uvSets", "indices@", "sections@", "skin@", "bones", "materials");
         UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
         string package = request.Text(PackageParam);
         if (!provider.Files.TryGetValue(package, out GameFile? file))
@@ -109,33 +149,276 @@ public static class UnrealDatasets
         }
         foreach (UObject export in provider.LoadUncached(file).GetExports())
         {
-            if (export is not UStaticMesh source)
+            switch (export)
             {
-                continue;
-            }
-            using StaticMeshDto dto = new(source, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
-            foreach (MeshLodDto<MeshVertex> lod in dto.LODs)
-            {
-                MeshGeometry geometry = UnrealMeshGeometry.FromLod(export.Name, dto, lod,
-                    UnrealPackageLoader.Basis, null, null, null, null);
-                int[] sections = new int[geometry.Sections.Length * 3];
-                for (int index = 0; index < geometry.Sections.Length; index++)
+                case UStaticMesh staticMesh:
                 {
-                    MeshSection section = geometry.Sections[index];
-                    sections[index * 3] = section.FirstIndex;
-                    sections[index * 3 + 1] = section.IndexCount;
-                    sections[index * 3 + 2] = section.MaterialIndex;
+                    using StaticMeshDto dto = new(staticMesh, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
+                    Rows(table, export.Name, dto, null, null);
+                    break;
                 }
-                table.Row(export.Name, (int)lod.SourceLodIndex, geometry.Positions.Length,
-                    Bytes<Vector3>(geometry.Positions),
-                    Bytes<Vector3>(geometry.Normals),
-                    Bytes<Vector4>(geometry.Tangents),
-                    Bytes<Vector2>(geometry.TexCoords.Length > 0 ? geometry.TexCoords[0] : null),
-                    Bytes<uint>(geometry.Indices),
-                    Bytes<int>(sections));
+                case USkeletalMesh skeletalMesh:
+                {
+                    using SkeletalMeshDto dto = new(skeletalMesh, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
+                    Rows(table, export.Name, dto, static vertex => vertex.Influences,
+                        UnrealRig.From(skeletalMesh, UnrealPackageLoader.Basis));
+                    break;
+                }
             }
         }
         return table.Build();
+    }
+
+    /// <summary>Every LOD of one mesh, decoded through the one reading both lanes share.</summary>
+    private static void Rows<TVertex>(TableBuilder table, string name, MeshDto<TVertex> dto,
+        Func<TVertex, MeshBoneInfluenceDto[]>? influences, UnrealRig? rig)
+        where TVertex : struct, IMeshVertex
+    {
+        string[]? boneNames = rig?.Names;
+        string? rootBone = boneNames is { Length: > 0 } ? boneNames[0] : null;
+        string materials = string.Join(ListSeparator, dto.Materials.Select(static slot =>
+            slot.Material is { IsNull: false } pointer ? pointer.ResolvedObject?.GetPathName() ?? string.Empty : string.Empty));
+        foreach (MeshLodDto<TVertex> lod in dto.LODs)
+        {
+            MeshGeometry geometry = UnrealMeshGeometry.FromLod(name, dto, lod, UnrealPackageLoader.Basis,
+                influences, rig?.BindPoses, boneNames, rootBone);
+            int[] sections = new int[geometry.Sections.Length * 3];
+            for (int index = 0; index < geometry.Sections.Length; index++)
+            {
+                MeshSection section = geometry.Sections[index];
+                sections[index * 3] = section.FirstIndex;
+                sections[index * 3 + 1] = section.IndexCount;
+                sections[index * 3 + 2] = section.MaterialIndex;
+            }
+            // Texture coordinate sets are sparse -- a set whose length disagreed with the vertex
+            // count is left out -- so the sets present are named beside the buffer that holds
+            // them, and nothing has to infer a set index from a position in the buffer.
+            List<int> uvSets = new();
+            List<Vector2> uvValues = new();
+            for (int set = 0; set < geometry.TexCoords.Length; set++)
+            {
+                if (geometry.TexCoords[set] is { } values)
+                {
+                    uvSets.Add(set);
+                    uvValues.AddRange(values);
+                }
+            }
+            table.Row(name, (int)lod.SourceLodIndex, geometry.Positions.Length,
+                Bytes<Vector3>(geometry.Positions),
+                Bytes<Vector3>(geometry.Normals),
+                Bytes<Vector4>(geometry.Tangents),
+                Bytes<Vector4>(geometry.Colors),
+                Bytes<Vector2>(uvValues.ToArray()),
+                string.Join(ListSeparator, uvSets),
+                Bytes<uint>(geometry.Indices),
+                Bytes<int>(sections),
+                Bytes<BoneWeight4>(geometry.Skin),
+                boneNames is null ? string.Empty : string.Join(ListSeparator, boneNames),
+                materials);
+        }
+    }
+
+    /// <summary>
+    /// The reference skeleton of every skeletal mesh in one package, bone by bone in the order
+    /// the meshes' weights index them: the bone's own name, its parent, the local transform it
+    /// rests at in the host's basis, and the path a clip addresses it by. An armature is built
+    /// from this alone -- no Unity rig prefab is created and none is needed.
+    /// </summary>
+    private static ColumnTable MeshSkeleton(DataRequest request)
+    {
+        TableBuilder table = new(MeshSkeletonId, "mesh", "bone", "parent#", "px#", "py#", "pz#",
+            "qx#", "qy#", "qz#", "qw#", "sx#", "sy#", "sz#", "path");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        string package = request.Text(PackageParam);
+        if (!provider.Files.TryGetValue(package, out GameFile? file))
+        {
+            return table.Build();
+        }
+        foreach (UObject export in provider.LoadUncached(file).GetExports())
+        {
+            if (export is not USkeletalMesh skeletalMesh)
+            {
+                continue;
+            }
+            foreach (UnrealRig.Bone bone in UnrealRig.From(skeletalMesh, UnrealPackageLoader.Basis).Bones)
+            {
+                table.Row(export.Name, bone.Name, bone.ParentIndex,
+                    bone.Position.X, bone.Position.Y, bone.Position.Z,
+                    bone.Rotation.X, bone.Rotation.Y, bone.Rotation.Z, bone.Rotation.W,
+                    bone.Scale.X, bone.Scale.Y, bone.Scale.Z, bone.Path);
+            }
+        }
+        return table.Build();
+    }
+
+    private static ColumnTable Materials(DataRequest request)
+    {
+        TableBuilder table = new(MaterialsId, "material", "kind", "name", "texture", "x#", "y#", "z#", "w#");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        MaterialSemanticsResolver? resolver =
+            UnrealSourceOptions.Flag(UnrealSourceOptions.MaterialSemantics) ? provider.Semantics : null;
+        foreach (string path in Named(request.List(MaterialParam)))
+        {
+            if (Load<UMaterialInterface>(provider, path) is not { } source)
+            {
+                continue;
+            }
+            List<UMaterialInterface> chain = MaterialConverter.Chain(source);
+            UnrealMaterialParameters parameters = MaterialConverter.Resolve(provider, resolver, source, chain);
+            parameters.StateSurfaceMode();
+            table.Row(path, MaterialRow, source.Name, chain[0].GetPathName(), 0d, 0d, 0d, 0d);
+            foreach (string keyword in parameters.Keywords)
+            {
+                table.Row(path, KeywordRow, keyword, string.Empty, 0d, 0d, 0d, 0d);
+            }
+            foreach ((string name, string? texture) in parameters.Textures)
+            {
+                table.Row(path, TextureRow, name, texture ?? string.Empty, 0d, 0d, 0d, 0d);
+            }
+            foreach ((string name, float value) in parameters.Floats)
+            {
+                table.Row(path, ScalarRow, name, string.Empty, value, 0d, 0d, 0d);
+            }
+            foreach ((string name, Vector4 color) in parameters.Colors)
+            {
+                table.Row(path, VectorRow, name, string.Empty, color.X, color.Y, color.Z, color.W);
+            }
+        }
+        return table.Build();
+    }
+
+    /// <summary>
+    /// Every named texture as pixels in a container the host loads: the package is read on this
+    /// thread (one archive, one stream -- reading it from several gains nothing and interleaves),
+    /// and the decode and encode, which are computation over a buffer, run on every core.
+    /// </summary>
+    private static ColumnTable Textures(DataRequest request)
+    {
+        TableBuilder table = new(TexturesId, "texture", "name", "width#", "height#", "srgb", "normal", "image@");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        ETexturePlatform platform = UnrealSourceOptions.TexturePlatformChoice();
+        List<(string Path, UTexture Source)> loaded = new();
+        foreach (string path in Named(request.List(TextureParam)))
+        {
+            if (Load<UTexture>(provider, path) is { } source)
+            {
+                loaded.Add((path, source));
+            }
+        }
+        (int Width, int Height, byte[] Image)[] images = new (int, int, byte[])[loaded.Count];
+        WarmEncoder();
+        Parallel.For(0, loaded.Count, index => images[index] = Image(loaded[index].Path, loaded[index].Source, platform));
+        for (int index = 0; index < loaded.Count; index++)
+        {
+            (string path, UTexture source) = loaded[index];
+            (int width, int height, byte[] image) = images[index];
+            table.Row(path, source.Name, width, height, source.SRGB ? "1" : "0", source.IsNormalMap ? "1" : "0", image);
+        }
+        return table.Build();
+    }
+
+    /// <summary>
+    /// One texture's pixels in a PNG, through the same encoder every exported texture goes
+    /// through. A layout the decoder answers with that has no matching colour type is reported
+    /// and yields no image, never a silently reinterpreted one.
+    /// </summary>
+    private static (int Width, int Height, byte[] Image) Image(string path, UTexture source, ETexturePlatform platform)
+    {
+        CTexture? decoded;
+        try
+        {
+            decoded = source.Decode(platform);
+        }
+        catch (Exception exception)
+        {
+            Logger.Warning(LogCategory.Import, $"[Unreal] {path} did not decode: {exception.GetType().Name}: {exception.Message}");
+            return (0, 0, []);
+        }
+        if (decoded is null)
+        {
+            Logger.Warning(LogCategory.Import, $"[Unreal] {path} has no decodable mip.");
+            return (0, 0, []);
+        }
+        DirectBitmap? bitmap = decoded.PixelFormat switch
+        {
+            EPixelFormat.PF_B8G8R8A8 => Bitmap<ColorBGRA<byte>, byte>(decoded),
+            EPixelFormat.PF_R8G8B8A8 => Bitmap<ColorRGBA<byte>, byte>(decoded),
+            EPixelFormat.PF_A8R8G8B8 => Bitmap<ColorARGB<byte>, byte>(decoded),
+            EPixelFormat.PF_G8 => Bitmap<ColorR<byte>, byte>(decoded),
+            EPixelFormat.PF_R8G8 => Bitmap<ColorRG<byte>, byte>(decoded),
+            EPixelFormat.PF_G16 => Bitmap<ColorR<ushort>, ushort>(decoded),
+            EPixelFormat.PF_R16F => Bitmap<ColorR<Half>, Half>(decoded),
+            EPixelFormat.PF_G16R16F => Bitmap<ColorRG<Half>, Half>(decoded),
+            EPixelFormat.PF_FloatRGBA => Bitmap<ColorRGBA<Half>, Half>(decoded),
+            EPixelFormat.PF_R32_FLOAT => Bitmap<ColorR<float>, float>(decoded),
+            EPixelFormat.PF_G32R32F => Bitmap<ColorRG<float>, float>(decoded),
+            EPixelFormat.PF_A32B32G32R32F => Bitmap<ColorRGBA<float>, float>(decoded),
+            _ => null,
+        };
+        if (bitmap is null)
+        {
+            Logger.Warning(LogCategory.Import, $"[Unreal] {path} decodes to {decoded.PixelFormat}, which no colour type here states.");
+            return (0, 0, []);
+        }
+        using MemoryStream stream = new();
+        bitmap.SaveAsPng(stream);
+        return (decoded.Width, decoded.Height, stream.ToArray());
+    }
+
+    /// <summary>
+    /// Run the encoder's static initialisers on this thread, once for the process.
+    /// They are not safe to enter from several threads at once: fpng registers each of its
+    /// globals in a plain dictionary keyed by a plain counter, and two initialisers racing it
+    /// throw out of a type initializer -- which the runtime caches and rethrows for every
+    /// later encode, so the whole process loses PNG encoding over a first-use race.
+    /// </summary>
+    private static void WarmEncoder() => Warmed.Value.GetType();
+
+    private static readonly Lazy<object> Warmed = new(static () =>
+    {
+        using MemoryStream stream = new();
+        new DirectBitmap<ColorBGRA<byte>, byte>(1, 1, 1).SaveAsPng(stream);
+        return stream;
+    }, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static DirectBitmap? Bitmap<TColor, TChannel>(CTexture decoded)
+        where TChannel : unmanaged
+        where TColor : unmanaged, AssetRipper.TextureDecoder.Rgb.IColor<TChannel>
+    {
+        int size = decoded.Width * decoded.Height * System.Runtime.CompilerServices.Unsafe.SizeOf<TColor>();
+        byte[] data = decoded.Data;
+        if (data.Length < size)
+        {
+            return null;
+        }
+        return new DirectBitmap<TColor, TChannel>(decoded.Width, decoded.Height, 1, data.Length == size ? data : data[..size]);
+    }
+
+    /// <summary>The named objects, each asked for once, in the order they were named.</summary>
+    private static IEnumerable<string> Named(string[] paths)
+    {
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (path.Length > 0 && seen.Add(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    /// <summary>The object one path names, or null with a line saying why -- a path a mount does not carry is data, not a fault.</summary>
+    private static T? Load<T>(UnrealFileProvider provider, string path) where T : UObject
+    {
+        try
+        {
+            return provider.LoadPackageObject<T>(path);
+        }
+        catch (Exception exception)
+        {
+            Logger.Warning(LogCategory.Import, $"[Unreal] {path} did not load: {exception.GetType().Name}: {exception.Message}");
+            return null;
+        }
     }
 
     private static byte[] Bytes<T>(T[]? values) where T : unmanaged =>
