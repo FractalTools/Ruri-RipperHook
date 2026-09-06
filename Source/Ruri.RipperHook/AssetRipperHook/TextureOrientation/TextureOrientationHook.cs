@@ -1,7 +1,10 @@
 using System.Reflection;
 using AssetRipper.Export.Modules.Textures;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
+using AssetRipper.SourceGenerated.Enums;
 using AssetRipper.SourceGenerated.Extensions;
+using AssetRipper.TextureDecoder.Rgb;
+using AssetRipper.TextureDecoder.Rgb.Formats;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
@@ -12,10 +15,18 @@ using Ruri.RipperHook.Conversion;
 namespace Ruri.RipperHook.AR;
 
 /// <summary>
-/// AssetRipper turns every decoded texture over because Unity stores them bottom-up. A texture
-/// a converter stored top-down (see <see cref="TextureOrientation"/>) must not be turned, so the
-/// one place the exporter turns a Texture2D is rewritten to ask first. Registered by the active
-/// decoder, which a process has one of: a texture nobody registered is turned exactly as before.
+/// What this pipeline changes about the one place AssetRipper turns a Texture2D into a bitmap.
+///
+/// <para>ORIENTATION: it turns every decoded texture over because Unity stores them bottom-up.
+/// A texture a converter stored top-down (see <see cref="TextureOrientation"/>) must not be
+/// turned, so the turn is rewritten to ask first. Registered by the active decoder, which a
+/// process has one of: a texture nobody registered is turned exactly as before.</para>
+///
+/// <para>THE THIRD CHANNEL of a BC5 normal map, which the format does not store and the decoder
+/// leaves at zero -- see <see cref="RestoreNormalZ"/>.</para>
+///
+/// <para>THE READ, put behind a lock so the conversion is safe to run on every core -- see
+/// <see cref="ReadImageDataSerially"/>.</para>
 /// </summary>
 public class TextureOrientationHook : CommonHook, IHookModule
 {
@@ -29,11 +40,15 @@ public class TextureOrientationHook : CommonHook, IHookModule
         MethodInfo replacement = typeof(TextureOrientationHook).GetMethod(nameof(TurnUnlessTopDown), BindingFlags.Public | BindingFlags.Static)!;
         ILCursor cursor = new(il);
         bool rewritten = false;
+        MethodInfo restore = typeof(TextureOrientationHook).GetMethod(nameof(RestoreNormalZ), BindingFlags.Public | BindingFlags.Static)!;
         while (cursor.TryGotoNext(MoveType.Before, instruction => IsCallTo(instruction, nameof(DirectBitmap), nameof(DirectBitmap.FlipY))))
         {
             cursor.Remove();
+            cursor.Emit(OpCodes.Dup);
             cursor.Emit(OpCodes.Ldarg_0);
             cursor.Emit(OpCodes.Call, replacement);
+            cursor.Emit(OpCodes.Ldarg_0);
+            cursor.Emit(OpCodes.Call, restore);
             rewritten = true;
         }
         SerializeTheRead(il);
@@ -56,6 +71,37 @@ public class TextureOrientationHook : CommonHook, IHookModule
             cursor.Remove();
             cursor.Emit(OpCodes.Call, serialized);
             ReadsSerialized = true;
+        }
+    }
+
+    /// <summary>
+    /// Put a two-channel normal map's Z back.
+    ///
+    /// BC5 stores X and Y only: Z is not stored because the vector is unit length and every
+    /// engine that ships these maps derives it when sampling. The decoder leaves the third
+    /// channel at zero, so an exported image hands a host (x, y, -1) after the usual 2c-1
+    /// decode and every normal points into the surface -- with nothing to see but shading that
+    /// is subtly wrong everywhere. An image has no shader behind it, so it has to carry Z.
+    ///
+    /// The arithmetic is upstream's own (TextureConverter.UnpackNormal), which reconstructs the
+    /// same channel for the DXT5nm packing -- that one also swaps alpha and red, which BC5 does
+    /// not, so only the reconstruction is shared.
+    /// </summary>
+    public static void RestoreNormalZ(DirectBitmap bitmap, ITexture2D texture)
+    {
+        if (texture.Format_C28E != TextureFormat.BC5 || bitmap is not DirectBitmap<ColorRGBA<byte>, byte> pixels)
+        {
+            return;
+        }
+        Span<ColorRGBA<byte>> span = pixels.Pixels;
+        for (int index = 0; index < span.Length; index++)
+        {
+            span[index].GetChannels(out byte red, out byte green, out _, out byte alpha);
+            const double MagnitudeSquared = 255d * 255d;
+            double x = red * 2d - 255d;
+            double y = green * 2d - 255d;
+            double z = double.Sqrt(MagnitudeSquared - double.Min(x * x + y * y, MagnitudeSquared));
+            span[index].SetChannels(red, green, (byte)Math.Clamp((z + 255d) / 2d, 0d, 255d), alpha);
         }
     }
 
