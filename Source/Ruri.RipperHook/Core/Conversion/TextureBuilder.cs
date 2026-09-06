@@ -1,4 +1,4 @@
-using AssetRipper.SourceGenerated.Extensions;
+﻿using AssetRipper.SourceGenerated.Extensions;
 using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_28;
 using AssetRipper.SourceGenerated.Enums;
@@ -61,8 +61,13 @@ public static class TextureBuilder
     private const int BilinearFilter = 1;
     private const int RepeatWrap = 0;
     private const int ClampWrap = 1;
-    private const int GammaColorSpace = 0;
-    private const int LinearColorSpace = 1;
+    // Texture2D.m_ColorSpace says whether THESE BYTES are sRGB-encoded, not which space a
+    // project renders in: the exporter reads it back as `sRGBTexture = value == 1`
+    // (AssetRipper.Export.UnityProjects/Textures/ImporterFactory.cs). The generated property
+    // is typed as UnityEngine.ColorSpace, whose Gamma=0/Linear=1 naming means the opposite of
+    // what this field holds -- so the two values are named here after what they actually say.
+    private const int LinearBytes = 0;
+    private const int SrgbBytes = 1;
 
     public static ITexture2D Build(ConvertedPackage package, string name, string? originalPath, TexturePixels pixels)
     {
@@ -133,7 +138,7 @@ public static class TextureBuilder
         texture.ImageCount_C28 = 1;
         texture.Dimension_C28 = TwoDimensional;
         texture.IsReadable_C28 = true;
-        texture.ColorSpace_C28 = pixels.Srgb ? GammaColorSpace : LinearColorSpace;
+        texture.ColorSpace_C28 = pixels.Srgb ? SrgbBytes : LinearBytes;
         texture.LightmapFormat_C28 = 0;
         texture.TextureSettings_C28.FilterMode = BilinearFilter;
         texture.TextureSettings_C28.Aniso = 1;
