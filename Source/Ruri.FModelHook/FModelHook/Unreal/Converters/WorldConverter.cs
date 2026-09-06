@@ -36,19 +36,7 @@ public sealed class WorldConverter : IUnrealConverter
             return;
         }
         UnrealComponentTree tree = new(conversion);
-        int actors = 0;
-        foreach (UObject actor in UnrealSceneGraph.Actors(world, conversion.PackagePath))
-        {
-            try
-            {
-                Actor(tree, actor);
-                actors++;
-            }
-            catch (Exception exception)
-            {
-                Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath} actor '{actor.Name}': {exception.GetType().Name}: {exception.Message}");
-            }
-        }
+        int actors = UnrealSceneGraph.Collect(tree.Components, world, conversion.PackagePath);
         tree.Build(null);
         if (world.StreamingLevels.Length > 0)
         {
@@ -57,14 +45,4 @@ public sealed class WorldConverter : IUnrealConverter
         Logger.Info(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: {actors} actor(s), {tree.Count} component(s) placed.");
     }
 
-    /// <summary>One actor's scene components into the tree, as UnrealSceneGraph reads them.</summary>
-    private static void Actor(UnrealComponentTree tree, UObject actor)
-    {
-        USceneComponent? root = UnrealSceneGraph.Root(actor);
-        foreach (USceneComponent component in UnrealSceneGraph.Components(actor, root))
-        {
-            (string name, bool active) = UnrealSceneGraph.Node(actor, component, root);
-            tree.Add(component, component.AttachParent?.Load<USceneComponent>(), name, active);
-        }
-    }
 }

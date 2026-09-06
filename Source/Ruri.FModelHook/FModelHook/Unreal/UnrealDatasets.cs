@@ -24,6 +24,7 @@ using Ruri.RipperHook.Conversion;
 using System.Numerics;
 using CUE4Parse.UE4.IO;
 using CUE4Parse.UE4.Objects.Core.Math;
+using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Pak;
@@ -291,11 +292,20 @@ public static class UnrealDatasets
         SourceBasis basis = UnrealPackageLoader.Basis;
         foreach (UObject export in provider.LoadPackage(file).GetExports())
         {
-            if (export is not UWorld world)
+            UnrealSceneGraph.Collector collector = new();
+            switch (export)
             {
-                continue;
+                case UWorld world:
+                    UnrealSceneGraph.Collect(collector, world, package);
+                    break;
+                case UBlueprintGeneratedClass actorClass
+                    when BlueprintConverter.IsActorClass(actorClass, provider.MappingsForGame):
+                    BlueprintConverter.Collect(collector, actorClass);
+                    break;
+                default:
+                    continue;
             }
-            List<UnrealSceneGraph.Placed> ordered = UnrealSceneGraph.Ordered(world, package);
+            List<UnrealSceneGraph.Placed> ordered = collector.Ordered();
             List<(int Parent, string Name, FTransform Transform, string Mesh, string Materials)> instances = new();
             for (int index = 0; index < ordered.Count; index++)
             {

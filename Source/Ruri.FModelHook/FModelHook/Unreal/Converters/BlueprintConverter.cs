@@ -40,7 +40,7 @@ public sealed class BlueprintConverter : IUnrealConverter
 
     public void Allocate(UnrealConversion conversion, ResolvedObject header)
     {
-        if (!conversion.IsSeed || !IsActorClass(conversion, header))
+        if (!conversion.IsSeed || !IsActorClass(header.Super, conversion.Shared.Provider.MappingsForGame))
         {
             data.Allocate(conversion, header);
             return;
@@ -57,11 +57,25 @@ public sealed class BlueprintConverter : IUnrealConverter
             data.Fill(conversion, export);
             return;
         }
+        UnrealComponentTree tree = new(conversion);
+        int classes = Collect(tree.Components, leaf);
+        tree.Build(root.GetTransform());
+        Logger.Info(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: Blueprint '{root.Name}' placed {tree.Count} component(s) from {classes} class(es).");
+    }
+
+    /// <summary>
+    /// The actor a Blueprint class builds, stated into <paramref name="collector"/>: the native
+    /// components of its default object, then the components each class in the chain's
+    /// construction script adds, with the templates a leaf-ward class overrides substituted.
+    /// Returns how many classes contributed. This is the whole reading -- the Unity conversion
+    /// builds objects from it, and a host reading the decoder's placements reads the same one.
+    /// </summary>
+    public static int Collect(UnrealSceneGraph.Collector collector, UBlueprintGeneratedClass leaf)
+    {
         List<UBlueprintGeneratedClass> chain = Chain(leaf);
         UObject? defaults = leaf.ClassDefaultObject.Load() as UObject;
-        UnrealComponentTree tree = new(conversion);
         Dictionary<string, USceneComponent> byName = new(StringComparer.Ordinal);
-        USceneComponent? actorRoot = Natives(tree, defaults, byName);
+        USceneComponent? actorRoot = Natives(collector, defaults, byName);
         Dictionary<(string OwnerClass, string Variable), USceneComponent> overrides = Overrides(chain);
         foreach (UBlueprintGeneratedClass owner in chain)
         {
@@ -73,22 +87,22 @@ public sealed class BlueprintConverter : IUnrealConverter
             {
                 if (pointer?.Load<USCS_Node>() is { } node)
                 {
-                    actorRoot = Script(tree, owner, node, ParentOf(node, byName) ?? actorRoot, actorRoot, byName, overrides);
+                    actorRoot = Script(collector, owner, node, ParentOf(node, byName) ?? actorRoot, actorRoot, byName, overrides);
                 }
             }
         }
-        tree.Build(root.GetTransform());
-        Logger.Info(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: Blueprint '{root.Name}' placed {tree.Count} component(s) from {chain.Count} class(es).");
+        return chain.Count;
     }
 
-    /// <summary>Whether the class descends from the native actor class, following super classes across packages to the first native one.</summary>
-    private static bool IsActorClass(UnrealConversion conversion, ResolvedObject header)
-    {
-        TypeMappings? mappings = conversion.Shared.Provider.MappingsForGame;
-        return mappings is not null
-            && UnrealActorScan.NativeAncestor(header.Super, mappings) is { } native
-            && UnrealConverters.IsA(native, ActorClassName, mappings);
-    }
+    /// <summary>Whether a generated class already read is one whose actor stands in a scene.</summary>
+    public static bool IsActorClass(UBlueprintGeneratedClass leaf, TypeMappings? mappings) =>
+        IsActorClass(leaf.SuperStruct?.ResolvedObject, mappings);
+
+    /// <summary>Whether a generated class is one whose actor stands in a scene, by its super chain.</summary>
+    public static bool IsActorClass(ResolvedObject? super, TypeMappings? mappings) =>
+        mappings is not null
+        && UnrealActorScan.NativeAncestor(super, mappings) is { } native
+        && UnrealConverters.IsA(native, ActorClassName, mappings);
 
     /// <summary>The Blueprint classes from the root-most down to the leaf.</summary>
     private static List<UBlueprintGeneratedClass> Chain(UBlueprintGeneratedClass leaf)
@@ -109,7 +123,7 @@ public sealed class BlueprintConverter : IUnrealConverter
     /// The default object's own scene components: those its properties name, keyed by the
     /// property, plus any other scene subobject it owns. Returns the root component it states.
     /// </summary>
-    private static USceneComponent? Natives(UnrealComponentTree tree, UObject? defaults, Dictionary<string, USceneComponent> byName)
+    private static USceneComponent? Natives(UnrealSceneGraph.Collector collector, UObject? defaults, Dictionary<string, USceneComponent> byName)
     {
         if (defaults is null)
         {
@@ -148,13 +162,13 @@ public sealed class BlueprintConverter : IUnrealConverter
         }
         if (root is not null)
         {
-            tree.Add(root, null, root.Name, UnrealComponents.Visible(root));
+            collector.Add(root, null, root.Name, UnrealComponents.Visible(root));
         }
         foreach ((USceneComponent component, string name) in natives)
         {
-            if (!tree.Contains(component))
+            if (!collector.Contains(component))
             {
-                tree.Add(component, component.AttachParent?.Load<USceneComponent>() ?? root, name, UnrealComponents.Visible(component));
+                collector.Add(component, component.AttachParent?.Load<USceneComponent>() ?? root, name, UnrealComponents.Visible(component));
             }
         }
         return root;
@@ -196,7 +210,7 @@ public sealed class BlueprintConverter : IUnrealConverter
     /// passes its children on to its own parent. Returns the actor root, which the first scene
     /// component becomes when the default object states none.
     /// </summary>
-    private static USceneComponent? Script(UnrealComponentTree tree, UBlueprintGeneratedClass owner, USCS_Node node, USceneComponent? parent,
+    private static USceneComponent? Script(UnrealSceneGraph.Collector collector, UBlueprintGeneratedClass owner, USCS_Node node, USceneComponent? parent,
         USceneComponent? actorRoot, Dictionary<string, USceneComponent> byName, Dictionary<(string OwnerClass, string Variable), USceneComponent> overrides)
     {
         string variable = node.InternalVariableName.Text;
@@ -209,14 +223,14 @@ public sealed class BlueprintConverter : IUnrealConverter
         {
             byName[variable] = template;
             actorRoot ??= template;
-            tree.Add(template, ReferenceEquals(parent, template) ? null : parent, variable, UnrealComponents.Visible(template));
+            collector.Add(template, ReferenceEquals(parent, template) ? null : parent, variable, UnrealComponents.Visible(template));
             childParent = template;
         }
         foreach (FPackageIndex? pointer in node.ChildNodes)
         {
             if (pointer?.Load<USCS_Node>() is { } child)
             {
-                actorRoot = Script(tree, owner, child, childParent, actorRoot, byName, overrides);
+                actorRoot = Script(collector, owner, child, childParent, actorRoot, byName, overrides);
             }
         }
         return actorRoot;

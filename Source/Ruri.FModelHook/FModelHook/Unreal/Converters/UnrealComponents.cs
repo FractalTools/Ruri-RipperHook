@@ -29,11 +29,7 @@ namespace Ruri.FModelHook.Unreal.Converters;
 /// </summary>
 public sealed class UnrealComponentTree
 {
-    private readonly record struct Entry(USceneComponent Component, USceneComponent? Parent, string Name, bool Active);
-
     private readonly UnrealConversion conversion;
-    private readonly List<Entry> entries = new();
-    private readonly Dictionary<USceneComponent, int> index = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<USceneComponent, IGameObject> nodes = new(ReferenceEqualityComparer.Instance);
 
     public UnrealComponentTree(UnrealConversion conversion)
@@ -41,51 +37,37 @@ public sealed class UnrealComponentTree
         this.conversion = conversion ?? throw new ArgumentNullException(nameof(conversion));
     }
 
-    public int Count => entries.Count;
+    /// <summary>What this tree will build: the components a reading stated, in its own order.</summary>
+    public UnrealSceneGraph.Collector Components { get; } = new();
+
+    public int Count => Components.Count;
 
     /// <summary>State one component; a parent the tree never receives leaves the component at the tree's root.</summary>
-    public void Add(USceneComponent component, USceneComponent? parent, string name, bool active)
-    {
-        if (index.ContainsKey(component))
-        {
-            return;
-        }
-        index[component] = entries.Count;
-        entries.Add(new Entry(component, parent, name, active));
-    }
+    public void Add(USceneComponent component, USceneComponent? parent, string name, bool active) =>
+        Components.Add(component, parent, name, active);
 
-    public bool Contains(USceneComponent component) => index.ContainsKey(component);
+    public bool Contains(USceneComponent component) => Components.Contains(component);
 
     /// <summary>Every node, parents before children, the roots under <paramref name="root"/> -- a scene's top level when null.</summary>
     public IReadOnlyDictionary<USceneComponent, IGameObject> Build(ITransform? root)
     {
-        foreach (Entry entry in entries)
+        List<UnrealSceneGraph.Placed> ordered = Components.Ordered();
+        List<IGameObject> built = new(ordered.Count);
+        foreach (UnrealSceneGraph.Placed placed in ordered)
         {
-            Ensure(entry, root, 0);
+            ITransform? parent = placed.Parent >= 0 ? built[placed.Parent].GetTransform() : root;
+            (Vector3 position, Quaternion rotation, Vector3 scale) =
+                UnrealComponents.Transform(conversion, placed.Component.GetRelativeTransform());
+            IGameObject node = conversion.Hierarchy.Node(placed.Name, parent, position, rotation, scale);
+            if (!placed.Active)
+            {
+                node.SetIsActive(false);
+            }
+            nodes[placed.Component] = node;
+            built.Add(node);
+            UnrealComponents.Render(conversion, node, placed.Component);
         }
         return nodes;
-    }
-
-    private IGameObject Ensure(Entry entry, ITransform? root, int depth)
-    {
-        if (nodes.TryGetValue(entry.Component, out IGameObject? existing))
-        {
-            return existing;
-        }
-        ITransform? parent = root;
-        if (entry.Parent is { } parentComponent && index.TryGetValue(parentComponent, out int parentIndex) && depth < entries.Count)
-        {
-            parent = Ensure(entries[parentIndex], root, depth + 1).GetTransform();
-        }
-        (Vector3 position, Quaternion rotation, Vector3 scale) = UnrealComponents.Transform(conversion, entry.Component.GetRelativeTransform());
-        IGameObject node = conversion.Hierarchy.Node(entry.Name, parent, position, rotation, scale);
-        if (!entry.Active)
-        {
-            node.SetIsActive(false);
-        }
-        nodes[entry.Component] = node;
-        UnrealComponents.Render(conversion, node, entry.Component);
-        return node;
     }
 }
 

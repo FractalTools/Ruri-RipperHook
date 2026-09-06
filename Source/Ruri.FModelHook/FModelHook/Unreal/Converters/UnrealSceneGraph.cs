@@ -8,7 +8,7 @@ using CUE4Parse.UE4.Objects.UObject;
 namespace Ruri.FModelHook.Unreal.Converters;
 
 /// <summary>
-/// What a world places, read once for every consumer.
+/// What a level places, read once for every consumer.
 ///
 /// A level is a list of actors, each a small tree of scene components: the component the actor
 /// calls its root, the components it was built with, and -- for a foliage actor -- the instanced
@@ -16,15 +16,80 @@ namespace Ruri.FModelHook.Unreal.Converters;
 /// whether it shows are decisions about UNREAL, not about whatever is being built from them, so
 /// they are made here: the Unity conversion builds GameObjects from this reading, and a host
 /// reading the decoder's datasets builds its own objects from the same one.
+///
+/// A Blueprint's construction script describes the same kind of tree and is read by
+/// <see cref="BlueprintConverter"/>; both fill the same <see cref="Collector"/>, so both
+/// consumers see one shape.
 /// </summary>
 public static class UnrealSceneGraph
 {
-    /// <summary>One placed component: where it sits in the tree, what it is called, whether it shows.</summary>
-    public readonly record struct Placed(USceneComponent Component, int Parent, string Name, bool Active);
-
     private const string HiddenName = "bHidden";
     private const string RootComponentName = "RootComponent";
     private static readonly string[] ComponentListNames = ["InstanceComponents", "BlueprintCreatedComponents"];
+
+    /// <summary>One placed component: where it sits in the tree, what it is called, whether it shows.</summary>
+    public readonly record struct Placed(USceneComponent Component, int Parent, string Name, bool Active);
+
+    /// <summary>
+    /// The components a reading states, in the order it states them, and the one ordering every
+    /// consumer needs: parents before children, each stating the index of the component it
+    /// attaches to (-1 for one whose parent this reading does not place).
+    /// </summary>
+    public sealed class Collector
+    {
+        private readonly List<USceneComponent> components = new();
+        private readonly List<USceneComponent?> parents = new();
+        private readonly List<string> names = new();
+        private readonly List<bool> actives = new();
+        private readonly Dictionary<USceneComponent, int> index = new(ReferenceEqualityComparer.Instance);
+
+        public int Count => components.Count;
+
+        /// <summary>State one component; the first statement of a component is the one that stands.</summary>
+        public void Add(USceneComponent component, USceneComponent? parent, string name, bool active)
+        {
+            if (index.ContainsKey(component))
+            {
+                return;
+            }
+            index[component] = components.Count;
+            components.Add(component);
+            parents.Add(parent);
+            names.Add(name);
+            actives.Add(active);
+        }
+
+        public bool Contains(USceneComponent component) => index.ContainsKey(component);
+
+        public List<Placed> Ordered()
+        {
+            List<Placed> ordered = new(components.Count);
+            int[] placedAt = new int[components.Count];
+            Array.Fill(placedAt, -1);
+            for (int entry = 0; entry < components.Count; entry++)
+            {
+                Place(entry, placedAt, ordered, 0);
+            }
+            return ordered;
+        }
+
+        private int Place(int entry, int[] placedAt, List<Placed> ordered, int depth)
+        {
+            if (placedAt[entry] >= 0)
+            {
+                return placedAt[entry];
+            }
+            int parent = -1;
+            if (parents[entry] is { } parentComponent && index.TryGetValue(parentComponent, out int parentEntry)
+                && parentEntry != entry && depth < components.Count)
+            {
+                parent = Place(parentEntry, placedAt, ordered, depth + 1);
+            }
+            placedAt[entry] = ordered.Count;
+            ordered.Add(new Placed(components[entry], parent, names[entry], actives[entry]));
+            return placedAt[entry];
+        }
+    }
 
     /// <summary>Every actor of a world's persistent level; none, with a line saying so, when the level does not load.</summary>
     public static IEnumerable<UObject> Actors(UWorld world, string package)
@@ -99,18 +164,13 @@ public static class UnrealSceneGraph
     }
 
     /// <summary>
-    /// Every scene component of every actor in a world, parents before children, each stating
-    /// the index of the component it attaches to (-1 for one whose parent this world does not
-    /// place). An actor that throws while being read is reported and skipped; the rest still
-    /// place, because one broken actor is not a broken level.
+    /// Every scene component of every actor in a world, into <paramref name="collector"/>. An
+    /// actor that throws while being read is reported and skipped; the rest still place, because
+    /// one broken actor is not a broken level. Returns how many actors were read.
     /// </summary>
-    public static List<Placed> Ordered(UWorld world, string package)
+    public static int Collect(Collector collector, UWorld world, string package)
     {
-        List<USceneComponent> components = new();
-        List<USceneComponent?> parents = new();
-        List<string> names = new();
-        List<bool> actives = new();
-        Dictionary<USceneComponent, int> seen = new(ReferenceEqualityComparer.Instance);
+        int actors = 0;
         foreach (UObject actor in Actors(world, package))
         {
             try
@@ -118,50 +178,16 @@ public static class UnrealSceneGraph
                 USceneComponent? root = Root(actor);
                 foreach (USceneComponent component in Components(actor, root))
                 {
-                    if (seen.ContainsKey(component))
-                    {
-                        continue;
-                    }
                     (string name, bool active) = Node(actor, component, root);
-                    seen[component] = components.Count;
-                    components.Add(component);
-                    parents.Add(component.AttachParent?.Load<USceneComponent>());
-                    names.Add(name);
-                    actives.Add(active);
+                    collector.Add(component, component.AttachParent?.Load<USceneComponent>(), name, active);
                 }
+                actors++;
             }
             catch (Exception exception)
             {
                 Logger.Warning(LogCategory.Import, $"[Unreal] {package} actor '{actor.Name}': {exception.GetType().Name}: {exception.Message}");
             }
         }
-
-        List<Placed> ordered = new(components.Count);
-        int[] placedAt = new int[components.Count];
-        Array.Fill(placedAt, -1);
-        for (int index = 0; index < components.Count; index++)
-        {
-            Place(index, components, parents, names, actives, seen, placedAt, ordered, 0);
-        }
-        return ordered;
-    }
-
-    private static int Place(int index, List<USceneComponent> components, List<USceneComponent?> parents,
-        List<string> names, List<bool> actives, Dictionary<USceneComponent, int> seen, int[] placedAt,
-        List<Placed> ordered, int depth)
-    {
-        if (placedAt[index] >= 0)
-        {
-            return placedAt[index];
-        }
-        int parent = -1;
-        if (parents[index] is { } parentComponent && seen.TryGetValue(parentComponent, out int parentIndex)
-            && parentIndex != index && depth < components.Count)
-        {
-            parent = Place(parentIndex, components, parents, names, actives, seen, placedAt, ordered, depth + 1);
-        }
-        placedAt[index] = ordered.Count;
-        ordered.Add(new Placed(components[index], parent, names[index], actives[index]));
-        return placedAt[index];
+        return actors;
     }
 }
