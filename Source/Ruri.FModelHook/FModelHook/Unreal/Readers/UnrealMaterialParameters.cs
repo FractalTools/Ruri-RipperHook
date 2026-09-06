@@ -1,6 +1,4 @@
 ﻿using AssetRipper.Import.Logging;
-using AssetRipper.SourceGenerated.Classes.ClassID_28;
-using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets.Exports.Material;
 using CUE4Parse.UE4.Assets.Exports.Material.Parameters;
@@ -13,7 +11,7 @@ using CUE4Parse.UE4.Versions;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
 /// The parameter set a material interface resolves to, read the way the engine resolves it:
@@ -120,10 +118,10 @@ internal sealed class UnrealMaterialParameters
     /// <summary>The base material: its own surface settings, every cached parameter with its default, and the inputs its graph connects.</summary>
     public void ReadRoot(UMaterial root)
     {
-        floats[MaterialConverter.BlendModeName] = (float)root.BlendMode;
-        floats[MaterialConverter.ShadingModelName] = (float)root.ShadingModel;
-        floats[MaterialConverter.TwoSidedName] = root.TwoSided ? 1f : 0f;
-        floats[MaterialConverter.OpacityMaskClipValueName] = root.OpacityMaskClipValue;
+        floats[UnrealMaterial.BlendModeName] = (float)root.BlendMode;
+        floats[UnrealMaterial.ShadingModelName] = (float)root.ShadingModel;
+        floats[UnrealMaterial.TwoSidedName] = root.TwoSided ? 1f : 0f;
+        floats[UnrealMaterial.OpacityMaskClipValueName] = root.OpacityMaskClipValue;
         if (root.CachedExpressionData is not { } cached)
         {
             return;
@@ -344,43 +342,18 @@ internal sealed class UnrealMaterialParameters
     }
 
     /// <summary>
-    /// The Unity form of this parameter set: every texture parameter's path resolved through the
-    /// conversion's asset table. A path no table entry answers to lands as a null texture,
-    /// exactly as an unresolvable reference always did.
-    /// </summary>
-    public MaterialInputs Inputs(string name, IShader shader, UnrealAssetTable table)
-    {
-        MaterialInputs inputs = new() { Name = name, Shader = shader };
-        StateSurfaceMode();
-        foreach ((string textureName, string? path) in textures)
-        {
-            inputs.Textures.Add((textureName, path is null ? null : table.Find<ITexture2D>(path), Vector2.One, Vector2.Zero));
-        }
-        foreach ((string floatName, float value) in floats)
-        {
-            inputs.Floats.Add((floatName, value));
-        }
-        foreach ((string colorName, Vector4 color) in colors)
-        {
-            inputs.Colors.Add((colorName, color));
-        }
-        inputs.Keywords.AddRange(keywords);
-        return inputs;
-    }
-
-    /// <summary>
     /// Unity's own spelling of the surface the base material declares: the mode, and the cutoff
     /// a masked material clips at. Stated on the parameter set itself, so a consumer that never
     /// builds a Unity asset reads the same two properties.
     /// </summary>
     public void StateSurfaceMode()
     {
-        int blend = (int)floats[MaterialConverter.BlendModeName];
+        int blend = (int)floats[UnrealMaterial.BlendModeName];
         bool masked = blend == (int)EBlendMode.BLEND_Masked;
         floats[ModeName] = blend == (int)EBlendMode.BLEND_Opaque ? ModeOpaque : masked ? ModeCutout : ModeFade;
         if (masked)
         {
-            floats[CutoffName] = floats[MaterialConverter.OpacityMaskClipValueName];
+            floats[CutoffName] = floats[UnrealMaterial.OpacityMaskClipValueName];
         }
     }
 

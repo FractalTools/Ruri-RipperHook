@@ -6,10 +6,11 @@ using Ruri.RipperHook.HookUtils.GameBundleHook;
 namespace Ruri.FModelHook.Unreal;
 
 /// <summary>
-/// The decoder for every Unreal build: its container is CUE4Parse's provider, its objects are
-/// converted in memory into stock Unity assets the moment AssetRipper asks for the archive
-/// files, and the rest of the pipeline never learns the data was not Unity's. Declared for the
-/// engine family, so any title without a decoder of its own is read through it.
+/// The decoder for every Unreal build: its container is CUE4Parse's provider, and what it holds
+/// is published as data -- placements, mesh buffers, reference skeletons, material parameters,
+/// texture pixels and animation curves -- for a host to build from directly. Nothing is turned
+/// into another engine's assets on the way. Declared for the engine family, so any title
+/// without a decoder of its own is read through it.
 /// </summary>
 [RipperHook(Ruri.RipperHook.GameType.UnrealEngine, "4.0", "")]
 public partial class UnrealEngine_Hook : RipperHookCommon

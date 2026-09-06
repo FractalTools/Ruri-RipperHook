@@ -8,7 +8,7 @@ using CUE4Parse_Conversion.Writers.ActorX.Structs.Animations;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
 /// An animation sequence decoded into sampled tracks: every bone track of its skeleton sampled

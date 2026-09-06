@@ -5,7 +5,7 @@ using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
 /// What a level places, read once for every consumer.

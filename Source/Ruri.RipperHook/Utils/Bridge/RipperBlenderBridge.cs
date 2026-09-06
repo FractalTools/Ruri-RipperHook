@@ -1010,12 +1010,12 @@ public static class RipperBlenderBridge
 
             System.Diagnostics.Stopwatch wall = System.Diagnostics.Stopwatch.StartNew();
             // Converting a texture reads it, decodes it and encodes it. The read is the only part
-            // that cannot share a thread (see TextureOrientationHook.ReadsSerialized), so once a
+            // that cannot share a thread (see TextureConversionHook.ReadsSerialized), so once a
             // lock guards it the whole set converts on every core -- including the textures of one
             // resource file, which a cooked build puts ALL of them in.
             IEnumerable<AssetRipper.SourceGenerated.Classes.ClassID_28.ITexture2D> streamed =
                 streamedByFile.Values.SelectMany(static group => group);
-            if (AR.TextureOrientationHook.ReadsSerialized)
+            if (AR.TextureConversionHook.ReadsSerialized)
             {
                 Parallel.ForEach(inlineTargets.Concat(streamed), texture => _encoded[texture] = EncodeOne(texture));
             }

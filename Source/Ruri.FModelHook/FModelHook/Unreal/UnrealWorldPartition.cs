@@ -77,7 +77,7 @@ public static class UnrealWorldPartition
         for (int slot = 0; slot < package.ExportMapLength; slot++)
         {
             if (package.ResolvePackageIndex(new FPackageIndex(package, slot + 1)) is { } header
-                && string.Equals(UnrealConversion.ClassOf(header), WorldPartitionName, StringComparison.Ordinal))
+                && string.Equals(UnrealClasses.Of(header), WorldPartitionName, StringComparison.Ordinal))
             {
                 return slot;
             }

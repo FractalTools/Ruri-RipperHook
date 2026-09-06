@@ -20,7 +20,7 @@ using CUE4Parse_Conversion.Textures;
 using Ruri.FModelHook.ShaderDecompiler.Semantics;
 using CUE4Parse_Conversion.Dto;
 using CUE4Parse_Conversion.Options;
-using Ruri.FModelHook.Unreal.Converters;
+using Ruri.FModelHook.Unreal.Readers;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 using CUE4Parse.UE4.IO;
@@ -189,7 +189,7 @@ public static class UnrealDatasets
                 {
                     using SkeletalMeshDto dto = new(skeletalMesh, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
                     Rows(table, export.Name, dto, static vertex => vertex.Influences,
-                        UnrealRig.From(skeletalMesh, UnrealPackageLoader.Basis));
+                        UnrealRig.From(skeletalMesh, UnrealBasis.Basis));
                     break;
                 }
             }
@@ -208,7 +208,7 @@ public static class UnrealDatasets
             slot.Material is { IsNull: false } pointer ? pointer.ResolvedObject?.GetPathName() ?? string.Empty : string.Empty));
         foreach (MeshLodDto<TVertex> lod in dto.LODs)
         {
-            MeshGeometry geometry = UnrealMeshGeometry.FromLod(name, dto, lod, UnrealPackageLoader.Basis,
+            MeshGeometry geometry = UnrealMeshGeometry.FromLod(name, dto, lod, UnrealBasis.Basis,
                 influences, rig?.BindPoses, boneNames, rootBone);
             int[] sections = new int[geometry.Sections.Length * 3];
             for (int index = 0; index < geometry.Sections.Length; index++)
@@ -268,7 +268,7 @@ public static class UnrealDatasets
             {
                 continue;
             }
-            foreach (UnrealRig.Bone bone in UnrealRig.From(skeletalMesh, UnrealPackageLoader.Basis).Bones)
+            foreach (UnrealRig.Bone bone in UnrealRig.From(skeletalMesh, UnrealBasis.Basis).Bones)
             {
                 table.Row(export.Name, bone.Name, bone.ParentIndex,
                     bone.Position.X, bone.Position.Y, bone.Position.Z,
@@ -298,7 +298,7 @@ public static class UnrealDatasets
         foreach (UObject export in provider.LoadPackage(file).GetExports())
         {
             if (export is not UAnimSequence source
-                || UnrealClip.Read(source, UnrealPackageLoader.Basis, package) is not { } sampled)
+                || UnrealClip.Read(source, UnrealBasis.Basis, package) is not { } sampled)
             {
                 continue;
             }
@@ -329,7 +329,7 @@ public static class UnrealDatasets
         {
             return table.Build();
         }
-        SourceBasis basis = UnrealPackageLoader.Basis;
+        SourceBasis basis = UnrealBasis.Basis;
         foreach (UObject export in provider.LoadPackage(file).GetExports())
         {
             UnrealSceneGraph.Collector collector = new();
@@ -339,8 +339,8 @@ public static class UnrealDatasets
                     UnrealSceneGraph.Collect(collector, world, package);
                     break;
                 case UBlueprintGeneratedClass actorClass
-                    when BlueprintConverter.IsActorClass(actorClass, provider.MappingsForGame):
-                    BlueprintConverter.Collect(collector, actorClass);
+                    when UnrealBlueprint.IsActorClass(actorClass, provider.MappingsForGame):
+                    UnrealBlueprint.Collect(collector, actorClass);
                     break;
                 default:
                     continue;
@@ -448,7 +448,7 @@ public static class UnrealDatasets
 
     /// <summary>
     /// Every named material interface's resolved parameters, flattened to one row per entry.
-    /// The resolution is <see cref="MaterialConverter.Resolve"/> -- the same reading the Unity
+    /// The resolution is <see cref="UnrealMaterial.Resolve"/> -- the same reading the Unity
     /// conversion runs -- so a host reading this and a project exported from the same mount
     /// cannot disagree about a material.
     /// </summary>
@@ -464,8 +464,8 @@ public static class UnrealDatasets
             {
                 continue;
             }
-            List<UMaterialInterface> chain = MaterialConverter.Chain(source);
-            UnrealMaterialParameters parameters = MaterialConverter.Resolve(provider, resolver, source, chain);
+            List<UMaterialInterface> chain = UnrealMaterial.Chain(source);
+            UnrealMaterialParameters parameters = UnrealMaterial.Resolve(provider, resolver, source, chain);
             parameters.StateSurfaceMode();
             table.Row(path, MaterialRow, source.Name, chain[0].GetPathName(), 0d, 0d, 0d, 0d);
             foreach (string keyword in parameters.Keywords)
@@ -828,7 +828,7 @@ public static class UnrealDatasets
             provider.RequiredKeys.Count,
             UnrealSourceOptions.Text(UnrealSourceOptions.Mappings),
             provider.MappingsForGame?.Types.Count ?? 0,
-            UnrealPackageLoader.Basis.UnitScale);
+            UnrealBasis.Basis.UnitScale);
         return table.Build();
     }
 

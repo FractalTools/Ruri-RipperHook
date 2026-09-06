@@ -1,6 +1,3 @@
-using AssetRipper.SourceGenerated.Classes.ClassID_1;
-using AssetRipper.SourceGenerated.Classes.ClassID_4;
-using AssetRipper.SourceGenerated.Extensions;
 using CUE4Parse.UE4.Assets.Exports.Animation;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Objects.Core.Math;
@@ -8,7 +5,7 @@ using CUE4Parse_Conversion.Dto;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
 /// A reference skeleton in Unity's terms: per bone its local transform through the basis, its
@@ -69,23 +66,5 @@ public sealed class UnrealRig
             bones.Add(new Bone(bone.Name, parent, position, rotation, scale, world, path));
         }
         return new UnrealRig(bones);
-    }
-
-    /// <summary>
-    /// Build the bone GameObjects under <paramref name="root"/>, returning each bone's Transform
-    /// in bone order -- the order a skinned renderer's bone list and a mesh's bind poses share.
-    /// </summary>
-    public ITransform[] Build(HierarchyBuilder hierarchy, IGameObject root)
-    {
-        ITransform[] transforms = new ITransform[Bones.Count];
-        ITransform rootTransform = root.GetTransform();
-        for (int i = 0; i < Bones.Count; i++)
-        {
-            Bone bone = Bones[i];
-            ITransform parent = bone.ParentIndex >= 0 && bone.ParentIndex < i ? transforms[bone.ParentIndex] : rootTransform;
-            IGameObject node = hierarchy.Node(bone.Name, parent, bone.Position, bone.Rotation, bone.Scale);
-            transforms[i] = node.GetTransform();
-        }
-        return transforms;
     }
 }

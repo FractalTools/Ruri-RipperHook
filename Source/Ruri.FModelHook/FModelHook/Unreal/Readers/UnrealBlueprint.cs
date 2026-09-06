@@ -1,7 +1,3 @@
-using AssetRipper.Import.Logging;
-using AssetRipper.SourceGenerated;
-using AssetRipper.SourceGenerated.Classes.ClassID_1;
-using AssetRipper.SourceGenerated.Extensions;
 using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
@@ -10,65 +6,29 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using System.Numerics;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
-/// A Blueprint class as a prefab: the actor its construction script builds. The class chain
-/// from the native actor down contributes, root-most first, the components its script states;
-/// the leaf's default object contributes the native components with the values the Blueprint
-/// set on them; the leaf's inherited-component records replace the templates it overrides in an
-/// ancestor's script. Each scene component is a node under the component it attaches to -- a
-/// native component by property name, a script variable by name, else the actor's root -- and
-/// renders exactly as it does when the actor stands in a level. A generated class that is not
-/// an actor (an animation or widget Blueprint), or one reached only as a dependency, is data
-/// and lands as data.
+/// The actor a Blueprint class builds. The class chain from the native actor down contributes,
+/// root-most first, the components its construction script states; the leaf's default object
+/// contributes the native components with the values the Blueprint set on them; the leaf's
+/// inherited-component records replace the templates it overrides in an ancestor's script. Each
+/// scene component attaches to the component it names -- a native component by property name, a
+/// script variable by name, else the actor's root -- so the actor stands exactly as it does in a
+/// level, and a level's actors and a Blueprint's script reach a consumer through one shape.
 /// </summary>
-public sealed class BlueprintConverter : IUnrealConverter
+public static class UnrealBlueprint
 {
     private const string ActorClassName = "Actor";
     private const string RootComponentName = "RootComponent";
     private const string ParentVariableName = "ParentComponentOrVariableName";
 
-    private readonly PropertyBagConverter data = new();
-
-    public IReadOnlyList<string> ClassNames { get; } = ["BlueprintGeneratedClass"];
-
-    public IReadOnlyList<ClassIDType> Produces { get; } =
-        [ClassIDType.GameObject, ClassIDType.Transform, ClassIDType.MeshRenderer, ClassIDType.SkinnedMeshRenderer, ClassIDType.Light, ClassIDType.MonoBehaviour];
-
-    public void Allocate(UnrealConversion conversion, ResolvedObject header)
-    {
-        if (!conversion.IsSeed || !IsActorClass(header.Super, conversion.Shared.Provider.MappingsForGame))
-        {
-            data.Allocate(conversion, header);
-            return;
-        }
-        string stem = UnrealPaths.UnityStem(conversion.PackagePath);
-        IGameObject root = conversion.Hierarchy.Node(Path.GetFileName(stem), null, Vector3.Zero, Quaternion.Identity, Vector3.One, stem);
-        conversion.Register(header, root);
-    }
-
-    public void Fill(UnrealConversion conversion, UObject export)
-    {
-        if (export is not UBlueprintGeneratedClass leaf || conversion.Table.Find<IGameObject>(export) is not { } root)
-        {
-            data.Fill(conversion, export);
-            return;
-        }
-        UnrealComponentTree tree = new(conversion);
-        int classes = Collect(tree.Components, leaf);
-        tree.Build(root.GetTransform());
-        Logger.Info(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: Blueprint '{root.Name}' placed {tree.Count} component(s) from {classes} class(es).");
-    }
-
     /// <summary>
     /// The actor a Blueprint class builds, stated into <paramref name="collector"/>: the native
     /// components of its default object, then the components each class in the chain's
     /// construction script adds, with the templates a leaf-ward class overrides substituted.
-    /// Returns how many classes contributed. This is the whole reading -- the Unity conversion
-    /// builds objects from it, and a host reading the decoder's placements reads the same one.
+    /// Returns how many classes contributed.
     /// </summary>
     public static int Collect(UnrealSceneGraph.Collector collector, UBlueprintGeneratedClass leaf)
     {
@@ -102,7 +62,7 @@ public sealed class BlueprintConverter : IUnrealConverter
     public static bool IsActorClass(ResolvedObject? super, TypeMappings? mappings) =>
         mappings is not null
         && UnrealActorScan.NativeAncestor(super, mappings) is { } native
-        && UnrealConverters.IsA(native, ActorClassName, mappings);
+        && UnrealClasses.IsA(native, ActorClassName, mappings);
 
     /// <summary>The Blueprint classes from the root-most down to the leaf.</summary>
     private static List<UBlueprintGeneratedClass> Chain(UBlueprintGeneratedClass leaf)

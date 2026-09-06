@@ -5,7 +5,7 @@ using CUE4Parse_Conversion.Dto;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 
-namespace Ruri.FModelHook.Unreal.Converters;
+namespace Ruri.FModelHook.Unreal.Readers;
 
 /// <summary>
 /// One Unreal LOD restated as Unity geometry: every vertex stream through the basis, V flipped

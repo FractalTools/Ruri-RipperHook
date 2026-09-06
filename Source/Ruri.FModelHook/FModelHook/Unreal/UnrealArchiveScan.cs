@@ -173,7 +173,7 @@ public static class UnrealArchiveScan
         {
             return;
         }
-        foreach (ClassIDType produced in UnrealConverters.ForClassName(className, mappings).Produces)
+        foreach (ClassIDType produced in UnrealClasses.Of(className, mappings))
         {
             classIds.Add((int)produced);
         }

@@ -77,7 +77,7 @@ public static class UnrealActorScan
             }
             ResolvedObject? parent = export.Super;
             string? native = NativeAncestor(parent, mappings);
-            if (native is null || !UnrealConverters.IsA(native, ActorClassName, mappings))
+            if (native is null || !UnrealClasses.IsA(native, ActorClassName, mappings))
             {
                 return null;
             }
@@ -88,8 +88,8 @@ public static class UnrealActorScan
 
     /// <summary>Character when the engine class descends from Character, Pawn when from Pawn, else Actor.</summary>
     private static string Kind(string native, TypeMappings mappings) =>
-        UnrealConverters.IsA(native, CharacterClassName, mappings) ? CharacterClassName
-        : UnrealConverters.IsA(native, PawnClassName, mappings) ? PawnClassName
+        UnrealClasses.IsA(native, CharacterClassName, mappings) ? CharacterClassName
+        : UnrealClasses.IsA(native, PawnClassName, mappings) ? PawnClassName
         : ActorClassName;
 
     /// <summary>The first class up the super chain that the property schema names -- the engine class a Blueprint chain bottoms out in -- or null when the chain ends before one.</summary>
