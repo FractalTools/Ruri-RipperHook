@@ -15,6 +15,7 @@ using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using Ruri.RipperHook.Conversion;
 using System.Numerics;
 
 namespace Ruri.FModelHook.Unreal.Converters;
@@ -103,11 +104,15 @@ public static class UnrealComponents
     private const string HiddenInGameName = "bHiddenInGame";
     private const string VisibleName = "bVisible";
 
-    public static (Vector3, Quaternion, Vector3) Transform(UnrealConversion conversion, FTransform transform)
+    public static (Vector3, Quaternion, Vector3) Transform(UnrealConversion conversion, FTransform transform) =>
+        Transform(conversion.Basis, transform);
+
+    /// <summary>A transform through the host's basis -- the one place a placement changes hands.</summary>
+    public static (Vector3 Position, Quaternion Rotation, Vector3 Scale) Transform(SourceBasis basis, FTransform transform)
     {
-        Vector3 position = conversion.Basis.Position(transform.Translation.X, transform.Translation.Y, transform.Translation.Z);
-        Quaternion rotation = conversion.Basis.Rotation(transform.Rotation.X, transform.Rotation.Y, transform.Rotation.Z, transform.Rotation.W);
-        Vector3 scale = conversion.Basis.Scale(transform.Scale3D.X, transform.Scale3D.Y, transform.Scale3D.Z);
+        Vector3 position = basis.Position(transform.Translation.X, transform.Translation.Y, transform.Translation.Z);
+        Quaternion rotation = basis.Rotation(transform.Rotation.X, transform.Rotation.Y, transform.Rotation.Z, transform.Rotation.W);
+        Vector3 scale = basis.Scale(transform.Scale3D.X, transform.Scale3D.Y, transform.Scale3D.Z);
         return (position, rotation, scale);
     }
 
@@ -148,8 +153,24 @@ public static class UnrealComponents
         }
     }
 
-    /// <summary>The material per slot: the component's override where it states one, else the mesh's own.</summary>
+    /// <summary>The material per slot as the Unity asset table answers for it.</summary>
     public static List<IMaterial?> Materials(UnrealConversion conversion, UObject mesh, FPackageIndex?[] overrides)
+    {
+        string[] paths = MaterialPaths(mesh, overrides);
+        List<IMaterial?> materials = new(paths.Length);
+        foreach (string path in paths)
+        {
+            materials.Add(path.Length == 0 ? null : conversion.Table.Find<IMaterial>(path));
+        }
+        return materials;
+    }
+
+    /// <summary>
+    /// The object path of the material each of a mesh's slots draws with: the component's
+    /// override where it states one, else the mesh's own; empty for a slot nothing names.
+    /// This is the whole decision, stated where both lanes read it.
+    /// </summary>
+    public static string[] MaterialPaths(UObject mesh, FPackageIndex?[] overrides)
     {
         FPackageIndex?[] slots = mesh switch
         {
@@ -157,13 +178,13 @@ public static class UnrealComponents
             USkeletalMesh skeletalMesh => skeletalMesh.SkeletalMaterials.Select(static slot => slot.Material).ToArray(),
             _ => [],
         };
-        List<IMaterial?> materials = new(slots.Length);
+        string[] paths = new string[slots.Length];
         for (int i = 0; i < slots.Length; i++)
         {
             FPackageIndex? chosen = i < overrides.Length && overrides[i] is { IsNull: false } ? overrides[i] : slots[i];
-            materials.Add(chosen is null ? null : conversion.Table.Find<IMaterial>(chosen));
+            paths[i] = chosen is { IsNull: false } ? chosen.ResolvedObject?.GetPathName() ?? string.Empty : string.Empty;
         }
-        return materials;
+        return paths;
     }
 
     private static void Instances(UnrealConversion conversion, IGameObject node, UInstancedStaticMeshComponent instanced)

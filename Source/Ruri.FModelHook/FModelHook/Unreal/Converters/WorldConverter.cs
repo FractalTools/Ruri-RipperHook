@@ -3,10 +3,8 @@ using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_104;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
-using CUE4Parse.UE4.Assets.Exports.Actor;
 using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Objects.Engine;
-using CUE4Parse.UE4.Objects.UObject;
 
 namespace Ruri.FModelHook.Unreal.Converters;
 
@@ -20,10 +18,6 @@ namespace Ruri.FModelHook.Unreal.Converters;
 /// </summary>
 public sealed class WorldConverter : IUnrealConverter
 {
-    private const string HiddenName = "bHidden";
-    private const string RootComponentName = "RootComponent";
-    private static readonly string[] ComponentListNames = ["InstanceComponents", "BlueprintCreatedComponents"];
-
     public IReadOnlyList<string> ClassNames { get; } = ["World"];
 
     public IReadOnlyList<ClassIDType> Produces { get; } =
@@ -41,19 +35,10 @@ public sealed class WorldConverter : IUnrealConverter
         {
             return;
         }
-        if (world.PersistentLevel.Load<ULevel>() is not { } level)
-        {
-            Logger.Warning(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: the persistent level did not load; no actors placed.");
-            return;
-        }
         UnrealComponentTree tree = new(conversion);
         int actors = 0;
-        foreach (FPackageIndex? pointer in level.Actors)
+        foreach (UObject actor in UnrealSceneGraph.Actors(world, conversion.PackagePath))
         {
-            if (pointer?.Load() is not UObject actor)
-            {
-                continue;
-            }
             try
             {
                 Actor(tree, actor);
@@ -72,48 +57,14 @@ public sealed class WorldConverter : IUnrealConverter
         Logger.Info(LogCategory.Import, $"[Unreal] {conversion.PackagePath}: {actors} actor(s), {tree.Count} component(s) placed.");
     }
 
-    /// <summary>
-    /// One actor's scene components into the tree: its root by the actor's label, hidden when
-    /// the actor is; the rest by their own names, each under the component it attaches to.
-    /// </summary>
+    /// <summary>One actor's scene components into the tree, as UnrealSceneGraph reads them.</summary>
     private static void Actor(UnrealComponentTree tree, UObject actor)
     {
-        bool hidden = actor.GetOrDefault<bool>(HiddenName);
-        string label = actor is AActor { ActorLabel: { Length: > 0 } actorLabel } ? actorLabel : actor.Name;
-        USceneComponent? root = actor.GetOrDefault<FPackageIndex?>(RootComponentName)?.Load<USceneComponent>();
-        foreach (USceneComponent component in Components(actor, root))
+        USceneComponent? root = UnrealSceneGraph.Root(actor);
+        foreach (USceneComponent component in UnrealSceneGraph.Components(actor, root))
         {
-            bool isRoot = ReferenceEquals(component, root);
-            bool active = UnrealComponents.Visible(component) && !(isRoot && hidden);
-            tree.Add(component, component.AttachParent?.Load<USceneComponent>(), isRoot ? label : component.Name, active);
-        }
-    }
-
-    private static IEnumerable<USceneComponent> Components(UObject actor, USceneComponent? root)
-    {
-        if (root is not null)
-        {
-            yield return root;
-        }
-        foreach (string listName in ComponentListNames)
-        {
-            foreach (FPackageIndex? pointer in actor.GetOrDefault<FPackageIndex?[]>(listName, []))
-            {
-                if (pointer?.Load<USceneComponent>() is { } component)
-                {
-                    yield return component;
-                }
-            }
-        }
-        if (actor is AInstancedFoliageActor { FoliageInfos: { } foliage })
-        {
-            foreach (FFoliageInfo info in foliage.Values)
-            {
-                if (info.Implementation is FFoliageStaticMesh { Component: { IsNull: false } pointer } && pointer.Load<USceneComponent>() is { } component)
-                {
-                    yield return component;
-                }
-            }
+            (string name, bool active) = UnrealSceneGraph.Node(actor, component, root);
+            tree.Add(component, component.AttachParent?.Load<USceneComponent>(), name, active);
         }
     }
 }

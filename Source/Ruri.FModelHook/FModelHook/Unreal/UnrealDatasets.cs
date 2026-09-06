@@ -8,6 +8,10 @@ using AssetRipper.Export.Modules.Textures;
 using AssetRipper.TextureDecoder.Rgb.Formats;
 using CUE4Parse.UE4.Assets.Exports.Material;
 using AssetRipper.Numerics;
+using CUE4Parse.UE4.Assets.Exports.Component;
+using CUE4Parse.UE4.Assets.Exports.Component.Lights;
+using CUE4Parse.UE4.Assets.Exports.Component.SkeletalMesh;
+using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
 using CUE4Parse.UE4.Assets.Exports.Texture;
@@ -19,6 +23,8 @@ using Ruri.FModelHook.Unreal.Converters;
 using Ruri.RipperHook.Conversion;
 using System.Numerics;
 using CUE4Parse.UE4.IO;
+using CUE4Parse.UE4.Objects.Core.Math;
+using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Pak;
 using CUE4Parse.UE4.VirtualFileSystem;
@@ -43,6 +49,7 @@ public static class UnrealDatasets
     public const string ActorsId = "unreal.actors";
     public const string MeshGeometryId = "unreal.mesh.geometry";
     public const string MeshSkeletonId = "unreal.mesh.skeleton";
+    public const string PlacementsId = "unreal.placements";
     public const string MaterialsId = "unreal.materials";
     public const string TexturesId = "unreal.textures";
     public const string PackageParam = "package";
@@ -60,6 +67,10 @@ public static class UnrealDatasets
     private const string TextureRow = "t";
     private const string ScalarRow = "f";
     private const string VectorRow = "c";
+    private const string SpotLight = "spot";
+    private const string DirectionalLight = "directional";
+    private const string PointLight = "point";
+    private const string AreaLight = "area";
 
     public static void Register()
     {
@@ -111,6 +122,13 @@ public static class UnrealDatasets
             + "the meshes' weights index them: name, parent, the local transform it rests at in the "
             + "host's basis, and the path a clip addresses it by.",
             MeshSkeleton);
+        Datasets.Publish(PlacementsId, DataRole.Internal, [DataParam.Text(PackageParam)],
+            "Every scene component one world places, parents before children: its name, the row of the "
+            + "component it hangs under (-1 at the top), whether it shows, its own transform in the host's "
+            + "basis, the object path of the mesh it renders and of the material each slot draws with, and "
+            + "-- for a light -- its kind, colour, intensity and shape. An instanced component places "
+            + "nothing itself and states one child row per instance.",
+            Placements);
         Datasets.Publish(MaterialsId, DataRole.Internal, [DataParam.List(MaterialParam)],
             "The parameter set each named material interface resolves to, the way the engine resolves it "
             + "(the base material's cached defaults, each instance overriding by name, then what the "
@@ -142,7 +160,7 @@ public static class UnrealDatasets
         TableBuilder table = new(MeshGeometryId, "name", "lod#", "vertices#", "positions@", "normals@",
             "tangents@", "colors@", "uv@", "uvSets", "indices@", "sections@", "skin@", "bones", "materials");
         UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
-        string package = request.Text(PackageParam);
+        string package = PackageKey(provider, request.Text(PackageParam));
         if (!provider.Files.TryGetValue(package, out GameFile? file))
         {
             return table.Build();
@@ -229,7 +247,7 @@ public static class UnrealDatasets
         TableBuilder table = new(MeshSkeletonId, "mesh", "bone", "parent#", "px#", "py#", "pz#",
             "qx#", "qy#", "qz#", "qw#", "sx#", "sy#", "sz#", "path");
         UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
-        string package = request.Text(PackageParam);
+        string package = PackageKey(provider, request.Text(PackageParam));
         if (!provider.Files.TryGetValue(package, out GameFile? file))
         {
             return table.Build();
@@ -251,6 +269,139 @@ public static class UnrealDatasets
         return table.Build();
     }
 
+    /// <summary>
+    /// Every scene component a world places, parents before children: what it is called, the
+    /// component it hangs under, whether it shows, its own transform in the host's basis, the
+    /// mesh it renders with the material each slot draws with, and -- for a light -- its kind,
+    /// colour and shape. An instanced component places nothing itself and states one child row
+    /// per instance, exactly as the engine draws it.
+    /// </summary>
+    private static ColumnTable Placements(DataRequest request)
+    {
+        TableBuilder table = new(PlacementsId, "name", "parent#", "active",
+            "px#", "py#", "pz#", "qx#", "qy#", "qz#", "qw#", "sx#", "sy#", "sz#",
+            "mesh", "skinned", "materials",
+            "light", "lr#", "lg#", "lb#", "intensity#", "range#", "outer#", "inner#", "width#", "height#");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        string package = PackageKey(provider, request.Text(PackageParam));
+        if (!provider.Files.TryGetValue(package, out GameFile? file))
+        {
+            return table.Build();
+        }
+        SourceBasis basis = UnrealPackageLoader.Basis;
+        foreach (UObject export in provider.LoadPackage(file).GetExports())
+        {
+            if (export is not UWorld world)
+            {
+                continue;
+            }
+            List<UnrealSceneGraph.Placed> ordered = UnrealSceneGraph.Ordered(world, package);
+            List<(int Parent, string Name, FTransform Transform, string Mesh, string Materials)> instances = new();
+            for (int index = 0; index < ordered.Count; index++)
+            {
+                UnrealSceneGraph.Placed placed = ordered[index];
+                Placement(table, basis, placed.Name, placed.Parent, placed.Active,
+                    placed.Component.GetRelativeTransform(), placed.Component, index, instances);
+            }
+            foreach ((int parent, string name, FTransform transform, string mesh, string materials) in instances)
+            {
+                Row(table, basis, name, parent, true, transform, mesh, false, materials,
+                    string.Empty, default, 0f, 0f, 0f, 0f, 0f, 0f);
+            }
+        }
+        return table.Build();
+    }
+
+    /// <summary>One component's row: what it renders, decided by what kind of component it is.</summary>
+    private static void Placement(TableBuilder table, SourceBasis basis, string name, int parent, bool active,
+        FTransform transform, USceneComponent component, int index,
+        List<(int Parent, string Name, FTransform Transform, string Mesh, string Materials)> instances)
+    {
+        switch (component)
+        {
+            case UInstancedStaticMeshComponent instanced:
+            {
+                (string mesh, string materials) = Mesh(instanced.GetStaticMesh(), instanced.OverrideMaterials);
+                FInstancedStaticMeshInstanceData[] placed = instanced.GetInstances();
+                for (int slot = 0; slot < placed.Length; slot++)
+                {
+                    instances.Add((index, $"{name}_{slot}", placed[slot].TransformData, mesh, materials));
+                }
+                Row(table, basis, name, parent, active, transform, string.Empty, false, string.Empty,
+                    string.Empty, default, 0f, 0f, 0f, 0f, 0f, 0f);
+                break;
+            }
+            case UStaticMeshComponent staticMesh:
+            {
+                (string mesh, string materials) = Mesh(staticMesh.GetStaticMesh(), staticMesh.OverrideMaterials);
+                Row(table, basis, name, parent, active, transform, mesh, false, materials,
+                    string.Empty, default, 0f, 0f, 0f, 0f, 0f, 0f);
+                break;
+            }
+            case USkinnedMeshComponent skinned:
+            {
+                (string mesh, string materials) = Mesh(skinned.GetSkeletalMesh(), skinned.OverrideMaterials);
+                Row(table, basis, name, parent, active, transform, mesh, true, materials,
+                    string.Empty, default, 0f, 0f, 0f, 0f, 0f, 0f);
+                break;
+            }
+            case ULightComponentBase light:
+            {
+                float unitScale = basis.UnitScale;
+                (string kind, float range, float outer, float inner, float width, float height) = light switch
+                {
+                    USpotLightComponent spot => (SpotLight, spot.AttenuationRadius * unitScale,
+                        spot.OuterConeAngle * 2f, spot.InnerConeAngle * 2f, 0f, 0f),
+                    URectLightComponent rect => (AreaLight, rect.AttenuationRadius * unitScale, 0f, 0f,
+                        rect.SourceWidth * unitScale, rect.SourceHeight * unitScale),
+                    UPointLightComponent point => (PointLight, point.AttenuationRadius * unitScale, 0f, 0f, 0f, 0f),
+                    UDirectionalLightComponent => (DirectionalLight, 0f, 0f, 0f, 0f, 0f),
+                    _ => (string.Empty, 0f, 0f, 0f, 0f, 0f),
+                };
+                Row(table, basis, name, parent, active, transform, string.Empty, false, string.Empty,
+                    kind, light.GetLightColor(), light.Intensity, range, outer, inner, width, height);
+                break;
+            }
+            default:
+                Row(table, basis, name, parent, active, transform, string.Empty, false, string.Empty,
+                    string.Empty, default, 0f, 0f, 0f, 0f, 0f, 0f);
+                break;
+        }
+    }
+
+    /// <summary>The mesh a component points at and the material every slot of it draws with.</summary>
+    private static (string Mesh, string Materials) Mesh(FPackageIndex pointer, FPackageIndex?[] overrides)
+    {
+        if (pointer.IsNull)
+        {
+            return (string.Empty, string.Empty);
+        }
+        string path = pointer.ResolvedObject?.GetPathName() ?? string.Empty;
+        return pointer.Load() is { } source
+            ? (path, string.Join(ListSeparator, UnrealComponents.MaterialPaths(source, overrides)))
+            : (path, string.Empty);
+    }
+
+    private static void Row(TableBuilder table, SourceBasis basis, string name, int parent, bool active,
+        FTransform transform, string mesh, bool skinned, string materials,
+        string light, FLinearColor color, float intensity, float range, float outer, float inner,
+        float width, float height)
+    {
+        (Vector3 position, Quaternion rotation, Vector3 scale) = UnrealComponents.Transform(basis, transform);
+        table.Row(name, parent, active ? "1" : "0",
+            position.X, position.Y, position.Z,
+            rotation.X, rotation.Y, rotation.Z, rotation.W,
+            scale.X, scale.Y, scale.Z,
+            mesh, skinned ? "1" : "0", materials,
+            light, color.R, color.G, color.B, intensity, range, outer, inner, width, height);
+    }
+
+    /// <summary>
+    /// Every named material interface's resolved parameters, flattened to one row per entry.
+    /// The resolution is <see cref="MaterialConverter.Resolve"/> -- the same reading the Unity
+    /// conversion runs -- so a host reading this and a project exported from the same mount
+    /// cannot disagree about a material.
+    /// </summary>
     private static ColumnTable Materials(DataRequest request)
     {
         TableBuilder table = new(MaterialsId, "material", "kind", "name", "texture", "x#", "y#", "z#", "w#");
@@ -419,6 +570,24 @@ public static class UnrealDatasets
             Logger.Warning(LogCategory.Import, $"[Unreal] {path} did not load: {exception.GetType().Name}: {exception.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// The mount's key for a package, from either spelling: the path the mount indexes it by
+    /// ("Project/Content/A/B.uasset") or the path the engine's own references use, whose leaf
+    /// names the object inside it ("/Game/A/B.B"). The object name is dropped -- a suffix that
+    /// is not a package extension is one -- and FixPath does the root and the extension.
+    ///
+    /// FixPath alone is not enough: it reads the leaf BEFORE trimming an object name off, so it
+    /// never appends the extension it just removed and answers a key no mount holds.
+    /// </summary>
+    private static string PackageKey(UnrealFileProvider provider, string path)
+    {
+        int slash = path.LastIndexOf('/');
+        int dot = path.LastIndexOf('.');
+        return provider.FixPath(dot > slash && !GameFile.UePackageExtensionsSet.Contains(path[(dot + 1)..])
+            ? path[..dot]
+            : path);
     }
 
     private static byte[] Bytes<T>(T[]? values) where T : unmanaged =>
