@@ -1178,6 +1178,15 @@ public static class RipperBlenderBridge
             }
             Captured.Add((asset.Collection.Name.ToLowerInvariant(), path,
                 Selection?.KeyOf(asset) ?? string.Empty, metaJson, curves));
+            // A clip whose curves crossed as a blob is NOT written as text as well: the host
+            // reads the blob (zero parse) and nothing reads the YAML. One character's 24 clips
+            // measured 793 MB and 38.8s of pure waste. Its .meta is still written, so the clip
+            // keeps its guid and its path. A clip whose blob failed is written, because then
+            // the text is the only thing left that names it.
+            if (curves.Length > 0)
+            {
+                return true;
+            }
             return _inner.Export(container, asset, path, fileSystem);
         }
 
@@ -1316,22 +1325,24 @@ public static class RipperBlenderBridge
 
         List<(string Guid, string NormalizedPath)> rootPaths = new();
 
-        foreach ((string path, byte[] bytes) in files)
+        // The META is the index, not the body. An asset's guid lives in its .meta, which is
+        // written for every exported asset; the body is optional, because an asset the bridge
+        // carries as a blob (a clip's curves, a mesh's buffers) is not serialised as text at
+        // all. Keying on the meta lets such an asset keep its identity and its path while its
+        // text simply does not exist, instead of forcing megabytes of YAML nobody reads.
+        foreach ((string metaPath, byte[] metaBytes) in files)
         {
-            if (path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            if (!metaPath.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
             {
-                continue;            }
-            if (!files.TryGetValue(path + ".meta", out byte[]? metaBytes))
-            {
-                other[path] = bytes;
                 continue;
             }
+            string path = metaPath[..^".meta".Length];
             string? guid = ExtractGuid(metaBytes, utf8);
             if (guid is null)
             {
-                other[path] = bytes;
                 continue;
             }
+            files.TryGetValue(path, out byte[]? bytes);
             string normalizedPath = NormalizeExportPath(path);
             pathToGuid[normalizedPath] = guid;
             string pathStem = StripExtension(normalizedPath);
@@ -1347,7 +1358,10 @@ public static class RipperBlenderBridge
             }
             leafGuids.Add(guid);
 
-            assets[guid] = bytes;
+            if (bytes is not null)
+            {
+                assets[guid] = bytes;
+            }
             assetPaths[guid] = path;
             bool? srgb = ExtractSrgb(metaBytes, utf8);
             if (srgb.HasValue)
@@ -1364,6 +1378,17 @@ public static class RipperBlenderBridge
                 roots.Add(guid);
                 sceneRoots.Add(guid);
                 rootPaths.Add((guid, NormalizeExportPath(path)));
+            }
+        }
+
+        // Whatever the export wrote that no meta names is not an asset: scripts, the project
+        // settings, the manifests. They travel as they always did.
+        foreach ((string path, byte[] bytes) in files)
+        {
+            if (!path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase)
+                && !files.ContainsKey(path + ".meta"))
+            {
+                other[path] = bytes;
             }
         }
 
