@@ -3,6 +3,13 @@ using AssetRipper.SourceGenerated;
 using CUE4Parse.FileProvider;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.StaticMesh;
+using CUE4Parse_Conversion.Dto;
+using CUE4Parse_Conversion.Options;
+using Ruri.FModelHook.Unreal.Converters;
+using Ruri.RipperHook.Conversion;
+using System.Numerics;
 using CUE4Parse.UE4.IO;
 using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Pak;
@@ -26,6 +33,8 @@ public static class UnrealDatasets
     public const string WorldsId = "unreal.worlds";
     public const string WorldCellsId = "unreal.world.cells";
     public const string ActorsId = "unreal.actors";
+    public const string MeshGeometryId = "unreal.mesh.geometry";
+    public const string PackageParam = "package";
     public const string WorldParam = "world";
     public const string MinXParam = "minX";
     public const string MinYParam = "minY";
@@ -72,7 +81,65 @@ public static class UnrealDatasets
             + "the install carries its package. Stating a window (minX, minY, maxX, maxY in Unreal units) keeps only the cells "
             + "whose bounds cross it, an always-loaded cell belonging to every window; stating a level keeps one hierarchical level.",
             WorldCells);
+        Datasets.Publish(MeshGeometryId, DataRole.Internal, [DataParam.Text(PackageParam)],
+            "Every LOD of every mesh in one package as raw buffers -- positions, normals, tangents, "
+            + "the first texture coordinates, triangle indices and the material sections -- already in "
+            + "the host's basis. The geometry without the conversion: no Unity asset, no export, no text.",
+            MeshGeometry);
     }
+
+    /// <summary>
+    /// Every LOD of every mesh in one package, as the buffers a host writes into its own mesh:
+    /// positions, normals, tangents, the first texture coordinate set and the triangle indices,
+    /// each a blob of packed floats or uints, plus the material sections as int triples
+    /// (first index, index count, material slot). Coordinates are already in the host's basis.
+    ///
+    /// This is the geometry WITHOUT the detour: the package is read, the LOD decoded and the
+    /// buffers handed over. Nothing here creates a Unity asset, runs an export or writes text.
+    /// </summary>
+    private static ColumnTable MeshGeometry(DataRequest request)
+    {
+        TableBuilder table = new(MeshGeometryId, "name", "lod#", "vertices#", "positions@", "normals@",
+            "tangents@", "uv0@", "indices@", "sections@");
+        UnrealFileProvider provider = UnrealProviderSession.Open(request.GameRoot);
+        string package = request.Text(PackageParam);
+        if (!provider.Files.TryGetValue(package, out GameFile? file))
+        {
+            return table.Build();
+        }
+        foreach (UObject export in provider.LoadUncached(file).GetExports())
+        {
+            if (export is not UStaticMesh source)
+            {
+                continue;
+            }
+            using StaticMeshDto dto = new(source, EMeshQuality.All, ENaniteMeshFormat.NoNanite);
+            foreach (MeshLodDto<MeshVertex> lod in dto.LODs)
+            {
+                MeshGeometry geometry = UnrealMeshGeometry.FromLod(export.Name, dto, lod,
+                    UnrealPackageLoader.Basis, null, null, null, null);
+                int[] sections = new int[geometry.Sections.Length * 3];
+                for (int index = 0; index < geometry.Sections.Length; index++)
+                {
+                    MeshSection section = geometry.Sections[index];
+                    sections[index * 3] = section.FirstIndex;
+                    sections[index * 3 + 1] = section.IndexCount;
+                    sections[index * 3 + 2] = section.MaterialIndex;
+                }
+                table.Row(export.Name, (int)lod.SourceLodIndex, geometry.Positions.Length,
+                    Bytes<Vector3>(geometry.Positions),
+                    Bytes<Vector3>(geometry.Normals),
+                    Bytes<Vector4>(geometry.Tangents),
+                    Bytes<Vector2>(geometry.TexCoords.Length > 0 ? geometry.TexCoords[0] : null),
+                    Bytes<uint>(geometry.Indices),
+                    Bytes<int>(sections));
+            }
+        }
+        return table.Build();
+    }
+
+    private static byte[] Bytes<T>(T[]? values) where T : unmanaged =>
+        values is null || values.Length == 0 ? [] : System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray();
 
     private static ColumnTable Actors(DataRequest request)
     {
